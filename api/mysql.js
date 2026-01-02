@@ -13,28 +13,25 @@ export default async function handler(req, res) {
         return;
     }
 
-    // 2. 这里的配置和你本地Navicat能连上的一模一样
+    // 2. 数据库配置
     const dbConfig = {
         host: 'mysql6.sqlpub.com',
         port: 3311,
         user: 'gileg_root',
         password: 'vKK4UFJJv0aGFCFX',
         database: 'gilegcn_mysql',
-        connectTimeout: 20000, // 增加到20秒超时
-        ssl: {
-            rejectUnauthorized: false // 允许自签名证书
-        }
+        connectTimeout: 20000,
+        ssl: { rejectUnauthorized: false },
+        
+        // 【核心修复点 1】允许一次执行多条 SQL (解决 ER_PARSE_ERROR)
+        multipleStatements: true 
     };
 
     let connection;
     try {
-        console.log("正在尝试从 Vercel 连接到 sqlpub...");
-        
-        // 3. 建立连接
         connection = await mysql.createConnection(dbConfig);
-        console.log("✅ 连接成功！");
-
-        // 4. 自动建表（确保表存在）
+        
+        // 3. 自动建表（确保表存在）
         await connection.query(`
             CREATE TABLE IF NOT EXISTS email_code_temp (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -44,22 +41,21 @@ export default async function handler(req, res) {
             )
         `);
 
-        // 5. 执行查询
         const { sql, params } = req.body;
-        const [rows] = await connection.execute(sql, params);
+        console.log("执行SQL:", sql);
+
+        // 【核心修复点 2】使用 .query() 而不是 .execute()
+        // .execute() 不支持多条语句，改用 .query() 就好了
+        const [rows] = await connection.query(sql, params);
+        
         res.status(200).json(rows);
 
     } catch (error) {
-        console.error("❌ 连接失败:", error);
-        
-        // 【关键】把具体的错误信息返回给前端，而不是笼统的“连接失败”
-        // 这样我们就能在浏览器里看到到底是密码错(ACCESS_DENIED)还是被墙了(ETIMEDOUT)
+        console.error("❌ SQL执行错误:", error);
         res.status(500).json({ 
-            error: "DB_CONNECTION_FAILED", 
+            error: "SQL_ERROR", 
             message: error.message,
-            code: error.code, // 错误代码，如 ETIMEDOUT, ECONNREFUSED
-            syscall: error.syscall,
-            hostname: dbConfig.host
+            code: error.code
         });
     } finally {
         if (connection) await connection.end();
