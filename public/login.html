@@ -253,17 +253,22 @@
                         // 存入缓存
                         localStorage.setItem('vip_user', JSON.stringify(data.user));
                         
-                        // ===========================================
-                        // 【核心修复点】这里控制跳转方向
-                        // ===========================================
-                        if (data.user.role === 'admin') {
-                            console.log('检测到管理员，跳转后台'); // 方便调试
-                            window.location.href = 'admin_super.html';
-                        } else {
-                            console.log('检测到普通用户，跳转主页');
-                            window.location.href = 'index.html';
-                        }
-                        // ===========================================
+// ===========================================
+// 【修复后的跳转逻辑】
+// ===========================================
+console.log('登录成功，用户信息:', data.user); // 打印出来看具体的 role 是什么
+
+// 使用 toLowerCase() 防止大小写问题，使用 trim() 防止空格问题
+const userRole = (data.user.role || '').toLowerCase().trim();
+
+if (userRole === 'admin') {
+    console.log('检测到管理员，跳转至：admin_super.html');
+    window.location.href = 'admin_super.html';
+} else {
+    console.log('检测到普通用户，跳转至：index.html');
+    window.location.href = 'index.html';
+}
+// ===========================================
 
                     } else {
                         showToast(data.message || '账号或密码错误');
