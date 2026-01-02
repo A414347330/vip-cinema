@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>会员登录 - SVIP Cinema</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<style>
+    /* 复用之前的黑金风格 */
+    body { background: #0f0f0f; color: #fff; display: flex; justify-content: center; align-items: center; height: 100vh; font-family: sans-serif; margin: 0; }
+    .card { background: rgba(25,25,25,0.9); padding: 40px; border-radius: 12px; border: 1px solid #bfa168; width: 100%; max-width: 400px; text-align: center; }
+    .gold-text { color: #e0c388; }
+    input { width: 100%; padding: 12px; margin: 10px 0; background: #000; border: 1px solid #333; color: #fff; border-radius: 4px; box-sizing: border-box; }
+    button { width: 100%; padding: 12px; background: linear-gradient(45deg, #bfa168, #e0c388); border: none; font-weight: bold; cursor: pointer; border-radius: 4px; margin-top: 10px; }
+    a { color: #bfa168; text-decoration: none; font-size: 0.9rem; }
+</style>
+</head>
+<body>
+    <div class="card">
+        <h2 class="gold-text"><i class="fas fa-crown"></i> 会员登录</h2>
+        <input type="text" id="account" placeholder="手机号 / 邮箱">
+        <input type="password" id="password" placeholder="密码">
+        <button onclick="login()">立即登录</button>
+        <div style="margin-top:15px;">
+            <a href="index.html">还没有账号？去注册</a>
+        </div>
+    </div>
+    <script src="https://cdn.bootcdn.net/ajax/libs/blueimp-md5/2.19.0/js/md5.min.js"></script>
+    <script>
+        async function login() {
+            const account = document.getElementById('account').value;
+            const pwd = document.getElementById('password').value;
+            if(!account || !pwd) return alert('请输入完整信息');
+
+            const res = await fetch('/api/login', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ account, password: md5(pwd) })
+            });
+            const data = await res.json();
+            
+            if(data.success) {
+                // 保存登录状态到本地
+                localStorage.setItem('vip_user', JSON.stringify(data.user));
+                
+                if(data.user.role === 'admin') {
+                    window.location.href = 'admin.html';
+                } else {
+                    window.location.href = 'home.html'; // 登录后跳转到主页
+                }
+            } else {
+                alert(data.message);
+            }
+        }
+    </script>
+</body>
+</html>
