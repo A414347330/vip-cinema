@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>会员登录 - 黑金至尊版</title>
+<!-- 引入字体和图标 -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@500;700&family=Noto+Sans+SC:wght@300;400;500&display=swap" rel="stylesheet">
+
+<style>
+    :root {
+        --bg-body: #050505;
+        --primary: #d4af37;
+        --gold-gradient: linear-gradient(135deg, #bf953f, #fcf6ba, #b38728, #fbf5b7, #aa771c);
+        --glass-bg: rgba(20, 20, 20, 0.85);
+        --input-bg: rgba(0, 0, 0, 0.6);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+        margin: 0; padding: 0;
+        font-family: 'Noto Sans SC', sans-serif;
+        background-color: var(--bg-body);
+        /* 与主页一致的背景 */
+        background-image: 
+            radial-gradient(circle at 50% 0%, rgba(212, 175, 55, 0.15), transparent 50%),
+            linear-gradient(0deg, #000 0%, #080808 100%);
+        color: #fff;
+        height: 100vh;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        overflow: hidden;
+    }
+
+    /* 登录卡片 */
+    .login-wrapper {
+        width: 100%;
+        max-width: 420px;
+        padding: 40px 30px;
+        margin: 20px;
+        background: var(--glass-bg);
+        backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+        border: 1px solid rgba(212, 175, 55, 0.3);
+        border-radius: 12px;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.9);
+        position: relative;
+        animation: fadeInUp 0.8s cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+
+    /* 顶部流光线条 */
+    .login-wrapper::before {
+        content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+        background: var(--gold-gradient);
+        opacity: 0.8; border-radius: 12px 12px 0 0;
+    }
+
+    @keyframes fadeInUp {
+        from { opacity: 0; transform: translateY(30px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    .header { text-align: center; margin-bottom: 35px; }
+    
+    .logo {
+        font-family: 'Noto Serif SC', serif;
+        font-size: 1.5rem;
+        font-weight: 700;
+        background: var(--gold-gradient);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        margin-bottom: 10px;
+        letter-spacing: 2px;
+        text-shadow: 0 2px 10px rgba(212, 175, 55, 0.1);
+    }
+
+    .subtitle { color: #666; font-size: 0.9rem; letter-spacing: 1px; }
+
+    /* 表单样式 */
+    .form-group { position: relative; margin-bottom: 25px; }
+
+    .form-control {
+        width: 100%; height: 50px;
+        background: var(--input-bg);
+        border: 1px solid rgba(255,255,255,0.15);
+        border-radius: 4px;
+        padding-left: 45px; padding-right: 15px;
+        color: #fff; font-size: 1rem;
+        transition: 0.3s;
+    }
+    
+    .form-control:focus {
+        border-color: var(--primary);
+        background: #000;
+        outline: none;
+        box-shadow: 0 0 15px rgba(212, 175, 55, 0.2);
+    }
+
+    .input-icon {
+        position: absolute; left: 15px; top: 50%;
+        transform: translateY(-50%);
+        color: #555; transition: 0.3s; font-size: 1.1rem;
+    }
+
+    .form-control:focus + .input-icon { color: var(--primary); }
+
+    /* 登录按钮 */
+    .login-btn {
+        width: 100%; height: 50px;
+        margin-top: 10px;
+        border: none; border-radius: 4px;
+        background: var(--gold-gradient);
+        background-size: 200% auto;
+        color: #1a1a1a; font-weight: 700; font-size: 1.1rem; letter-spacing: 2px;
+        cursor: pointer; transition: 0.4s;
+        display: flex; align-items: center; justify-content: center; gap: 10px;
+    }
+    
+    .login-btn:hover {
+        background-position: right center;
+        color: #000;
+        box-shadow: 0 5px 20px rgba(212, 175, 55, 0.3);
+        transform: translateY(-1px);
+    }
+
+    .divider {
+        margin: 25px 0;
+        height: 1px;
+        background: linear-gradient(90deg, transparent, #333, transparent);
+        position: relative;
+    }
+    
+    .footer-links {
+        text-align: center; font-size: 0.9rem; color: #666;
+    }
+    .footer-links a {
+        color: var(--primary); text-decoration: none; transition: 0.3s;
+        margin: 0 5px;
+    }
+    .footer-links a:hover { text-decoration: underline; color: #fff; }
+
+    /* 提示框 */
+    .toast {
+        position: fixed; top: 15%; left: 50%; transform: translateX(-50%);
+        background: rgba(0,0,0,0.9); border: 1px solid var(--primary);
+        color: var(--primary); padding: 12px 25px; border-radius: 50px;
+        z-index: 2000; font-size: 0.9rem; display: none;
+        box-shadow: 0 5px 20px rgba(0,0,0,0.5);
+    }
+
+    /* 加载层 */
+    .loading-overlay {
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0,0,0,0.92); z-index: 3000; display: none;
+        flex-direction: column; align-items: center; justify-content: center;
+    }
+    .spinner {
+        width: 40px; height: 40px;
+        border: 3px solid rgba(212, 175, 55, 0.3);
+        border-top-color: var(--primary);
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    @media (max-width: 500px) {
+        .login-wrapper { padding: 30px 20px; border: none; background: transparent; box-shadow: none; }
+        .login-wrapper::before { display: none; }
+        .form-control { background: rgba(20,20,20,0.8); }
+    }
+</style>
+</head>
+<body>
+
+    <div class="login-wrapper">
+        <div class="header">
+            <div class="logo"><i class="fas fa-crown"></i> SVIP CINEMA</div>
+            <div class="subtitle">登录您的尊享会员账号</div>
+        </div>
+
+        <form id="loginForm">
+            <!-- 账号输入 -->
+            <div class="form-group">
+                <input type="text" class="form-control" id="account" placeholder="手机号码 / 电子邮箱" required autocomplete="username">
+                <i class="fas fa-user input-icon"></i>
+            </div>
+
+            <!-- 密码输入 -->
+            <div class="form-group">
+                <input type="password" class="form-control" id="password" placeholder="请输入密码" required autocomplete="current-password">
+                <i class="fas fa-lock input-icon"></i>
+            </div>
+
+            <button type="submit" class="login-btn">
+                立即登录 <i class="fas fa-arrow-right"></i>
+            </button>
+        </form>
+
+        <div class="divider"></div>
+
+        <div class="footer-links">
+            还没账号？<a href="register.html">立即注册</a>
+            <span style="color:#333">|</span>
+            <a href="#" onclick="alert('请联系管理员重置密码')">忘记密码?</a>
+        </div>
+    </div>
+
+    <!-- 加载与提示 -->
+    <div class="loading-overlay" id="loading">
+        <div class="spinner"></div>
+        <p style="color:var(--primary); margin-top:15px; letter-spacing:1px;">身份验证中...</p>
+    </div>
+    <div id="toast" class="toast"></div>
+
+    <!-- 引入MD5加密库 -->
+    <script src="https://cdn.bootcdn.net/ajax/libs/blueimp-md5/2.19.0/js/md5.min.js"></script>
+
+    <script>
+        document.getElementById('loginForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const account = document.getElementById('account').value.trim();
+            const password = document.getElementById('password').value;
+            
+            if(!account || !password) {
+                showToast('请输入完整的账号和密码');
+                return;
+            }
+
+            // 显示加载
+            const loading = document.getElementById('loading');
+            loading.style.display = 'flex';
+
+            try {
+                // 对接后端登录接口
+                const res = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    // 注意：密码使用 MD5 加密传输，与注册时保持一致
+                    body: JSON.stringify({ 
+                        account: account, 
+                        password: md5(password) 
+                    })
+                });
+
+                const data = await res.json();
+                
+                // 延迟一点点为了动画效果
+                setTimeout(() => {
+                    loading.style.display = 'none';
+
+                    if (data.success) {
+                        showToast('登录成功，正在跳转...');
+                        
+                        // 1. 将用户信息存入本地
+                        localStorage.setItem('vip_user', JSON.stringify(data.user));
+                        
+                        // 2. 判断是否是管理员 (可选)
+                        if(data.user.role === 'admin') {
+                            window.location.href = 'admin.html'; // 如果你有做后台页
+                        } else {
+                            window.location.href = 'index.html'; // 跳转到视频解析主页
+                        }
+                    } else {
+                        showToast(data.message || '账号或密码错误');
+                        document.getElementById('password').value = ''; // 清空密码
+                    }
+                }, 800);
+
+            } catch (err) {
+                console.error(err);
+                loading.style.display = 'none';
+                showToast('无法连接服务器，请检查网络');
+            }
+        });
+
+        // 通用提示框函数
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            toast.innerHTML = `<i class="fas fa-info-circle"></i> ${msg}`;
+            toast.style.display = 'block';
+            toast.style.animation = 'fadeInDown 0.5s';
+            
+            setTimeout(() => {
+                toast.style.display = 'none';
+            }, 3000);
+        }
+
+        // 添加动画样式
+        const style = document.createElement('style');
+        style.innerHTML = `
+            @keyframes fadeInDown {
+                from { opacity: 0; transform: translate(-50%, -20px); }
+                to { opacity: 1; transform: translate(-50%, 0); }
+            }
+        `;
+        document.head.appendChild(style);
+// ...前面的代码不变...
+                    if (data.success) {
+                        showToast('登录成功，正在跳转...');
+                        
+                        localStorage.setItem('vip_user', JSON.stringify(data.user));
+                        
+                        // 【这里是修改重点】
+                        if(data.user.role === 'admin') {
+                            // 如果是管理员，跳转到超级后台
+                            window.location.href = 'admin_super.html'; 
+                        } else {
+                            // 如果是普通用户，跳转到主页
+                            window.location.href = 'index.html'; 
+                        }
+                    } 
+// ...后面的代码不变...
+    </script>
+</body>
+</html>

@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>超级控制台 - SVIP CINEMA</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+    :root {
+        --bg-body: #050505;
+        --card-bg: rgba(20, 20, 20, 0.9);
+        --primary: #d4af37;
+        --gold-gradient: linear-gradient(135deg, #bf953f, #fcf6ba, #b38728, #fbf5b7, #aa771c);
+        --text-color: #e0e0e0;
+        --border: 1px solid rgba(212, 175, 55, 0.2);
+    }
+    
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg-body); color: var(--text-color); font-family: 'Noto Sans SC', sans-serif; }
+    
+    /* 顶部导航 */
+    .navbar {
+        height: 70px; background: rgba(10,10,10,0.95); border-bottom: 1px solid rgba(212, 175, 55, 0.3);
+        display: flex; justify-content: space-between; align-items: center; padding: 0 40px;
+        position: sticky; top: 0; z-index: 100;
+    }
+    .brand { font-size: 1.4rem; font-weight: bold; background: var(--gold-gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .nav-right span { margin-right: 20px; color: #888; }
+    .logout-btn { background: #333; color: #fff; border: 1px solid #555; padding: 5px 15px; cursor: pointer; border-radius: 4px; transition: 0.3s; }
+    .logout-btn:hover { border-color: var(--primary); color: var(--primary); }
+
+    /* 主布局 */
+    .container { max-width: 1400px; margin: 30px auto; padding: 0 20px; display: grid; grid-template-columns: 350px 1fr; gap: 30px; }
+    
+    .card { background: var(--card-bg); border: var(--border); border-radius: 12px; padding: 25px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+    h2 { margin-top: 0; color: var(--primary); font-size: 1.2rem; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 15px; margin-bottom: 20px; }
+
+    /* 表单控件 */
+    .form-group { margin-bottom: 20px; }
+    label { display: block; margin-bottom: 8px; color: #aaa; font-size: 0.9rem; }
+    input, select { width: 100%; height: 45px; background: #000; border: 1px solid #333; color: #fff; padding: 0 15px; border-radius: 6px; outline: none; transition: 0.3s; }
+    input:focus, select:focus { border-color: var(--primary); }
+    
+    .btn { width: 100%; height: 45px; background: var(--primary); color: #000; font-weight: bold; border: none; border-radius: 6px; cursor: pointer; transition: 0.3s; }
+    .btn:hover { filter: brightness(1.1); }
+    .btn-danger { background: #8b0000; color: #fff; width: auto; height: 30px; font-size: 0.8rem; padding: 0 10px; }
+
+    /* 激活码结果区 */
+    .result-box {
+        margin-top: 20px; background: #000; border: 1px dashed #444; padding: 15px;
+        height: 200px; overflow-y: auto; color: #0f0; font-family: monospace; font-size: 0.9rem;
+    }
+    
+    /* 表格 */
+    table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+    th { text-align: left; padding: 12px; color: #888; border-bottom: 1px solid #333; font-size: 0.9rem; }
+    td { padding: 12px; border-bottom: 1px solid #222; font-size: 0.95rem; }
+    tr:hover { background: rgba(255,255,255,0.03); }
+    
+    .status-active { color: #0f0; background: rgba(0,255,0,0.1); padding: 2px 8px; border-radius: 4px; font-size: 0.8rem; }
+    .status-expired { color: #f00; background: rgba(255,0,0,0.1); padding: 2px 8px; border-radius: 4px; font-size: 0.8rem; }
+    
+    /* 响应式 */
+    @media (max-width: 900px) { .container { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+    <div class="navbar">
+        <div class="brand"><i class="fas fa-user-shield"></i> SVIP SUPER ADMIN</div>
+        <div class="nav-right">
+            <span id="adminName">管理员</span>
+            <button class="logout-btn" onclick="logout()">退出登录</button>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- 左侧：激活码生成器 -->
+        <div class="card">
+            <h2><i class="fas fa-key"></i> 激活码生成器</h2>
+            
+            <div class="form-group">
+                <label>选择时长</label>
+                <select id="duration">
+                    <option value="1">1 天 (体验卡)</option>
+                    <option value="3">3 天 (短期卡)</option>
+                    <option value="7">7 天 (周卡)</option>
+                    <option value="30" selected>30 天 (月卡)</option>
+                    <option value="365">1 年 (年卡)</option>
+                    <option value="3650">10 年 (至尊永久)</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label>生成数量</label>
+                <input type="number" id="codeCount" value="1" min="1" max="50">
+            </div>
+
+            <button class="btn" onclick="generateCodes()"><i class="fas fa-bolt"></i> 立即生成</button>
+
+            <div class="result-box" id="codeResult">
+                <div style="color:#666; text-align:center; padding-top:80px;">生成的激活码将显示在这里</div>
+            </div>
+            <button class="btn" style="margin-top:10px; background:#333; color:#fff; border:1px solid #555;" onclick="copyCodes()">复制所有激活码</button>
+        </div>
+
+        <!-- 右侧：用户管理 -->
+        <div class="card">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                <h2 style="margin:0; border:none;">用户数据库</h2>
+                <div style="display:flex; gap:10px;">
+                    <input type="text" id="searchInput" placeholder="搜索手机/邮箱..." style="width:200px; height:35px;">
+                    <button class="btn" style="width:80px; height:35px;" onclick="loadUsers()">搜索</button>
+                </div>
+            </div>
+
+            <div style="overflow-x:auto;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>用户名/手机</th>
+                            <th>角色</th>
+                            <th>VIP状态</th>
+                            <th>过期时间</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="userTableBody">
+                        <!-- 数据载入中 -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 权限校验
+        const userStr = localStorage.getItem('vip_user');
+        if (!userStr) window.location.href = 'login.html';
+        const currentUser = JSON.parse(userStr);
+        if (currentUser.role !== 'admin') {
+            alert('非法访问：您不是管理员');
+            window.location.href = 'index.html';
+        }
+        document.getElementById('adminName').innerText = currentUser.username;
+
+        // --- 功能 1：生成激活码 ---
+        async function generateCodes() {
+            const duration = document.getElementById('duration').value;
+            const count = document.getElementById('codeCount').value;
+            const resultBox = document.getElementById('codeResult');
+
+            resultBox.innerHTML = '<div style="color:#aaa; text-align:center; padding-top:80px;">生成中...</div>';
+
+            try {
+                const res = await fetch('/api/admin/generate', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        adminUser: currentUser.username,
+                        count: count,
+                        duration: duration
+                    })
+                });
+                const data = await res.json();
+
+                if(data.success) {
+                    let html = '';
+                    data.codes.forEach(item => {
+                        html += `<div>${item.code} <span style="color:#666">(${item.days}天)</span></div>`;
+                    });
+                    resultBox.innerHTML = html;
+                } else {
+                    alert(data.message);
+                }
+            } catch(e) { console.error(e); alert('网络错误'); }
+        }
+
+        function copyCodes() {
+            const text = document.getElementById('codeResult').innerText;
+            if(!text || text.includes('生成')) return;
+            navigator.clipboard.writeText(text);
+            alert('已复制到剪贴板');
+        }
+
+        // --- 功能 2：用户管理 ---
+        async function loadUsers() {
+            const search = document.getElementById('searchInput').value;
+            const tbody = document.getElementById('userTableBody');
+            
+            try {
+                const res = await fetch('/api/admin/users', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        adminUser: currentUser.username,
+                        search: search
+                    })
+                });
+                const data = await res.json();
+
+                if(data.success) {
+                    tbody.innerHTML = data.users.map(u => {
+                        // 计算状态
+                        const isExpired = u.vip_expire_time ? new Date(u.vip_expire_time) < new Date() : true;
+                        const statusClass = (u.is_active && !isExpired) ? 'status-active' : 'status-expired';
+                        const statusText = (u.is_active && !isExpired) ? '生效中' : '已过期/未激活';
+                        const expireTime = u.vip_expire_time ? new Date(u.vip_expire_time).toLocaleDateString() : '-';
+
+                        return `
+                            <tr>
+                                <td>${u.id}</td>
+                                <td>${u.username}<br><span style="font-size:0.8rem;color:#666">${u.email}</span></td>
+                                <td style="color:${u.role==='admin'?'var(--primary)':'#aaa'}">${u.role}</td>
+                                <td><span class="${statusClass}">${statusText}</span></td>
+                                <td>${expireTime}</td>
+                                <td>
+                                    ${u.role !== 'admin' ? `<button class="btn btn-danger" onclick="deleteUser(${u.id})">删除</button>` : '-'}
+                                </td>
+                            </tr>
+                        `;
+                    }).join('');
+                }
+            } catch(e) { console.error(e); }
+        }
+
+        async function deleteUser(id) {
+            if(!confirm('确定要删除该用户吗？此操作不可恢复。')) return;
+            
+            try {
+                const res = await fetch('/api/admin/delete_user', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        adminUser: currentUser.username,
+                        targetId: id
+                    })
+                });
+                const data = await res.json();
+                if(data.success) {
+                    alert('删除成功');
+                    loadUsers();
+                } else {
+                    alert(data.message);
+                }
+            } catch(e) { alert('操作失败'); }
+        }
+
+        function logout() {
+            localStorage.removeItem('vip_user');
+            window.location.href = 'login.html';
+        }
+
+        // 初始化加载
+        loadUsers();
+    </script>
+</body>
+</html>
