@@ -217,72 +217,83 @@
     <!-- 引入MD5加密库 -->
     <script src="https://cdn.bootcdn.net/ajax/libs/blueimp-md5/2.19.0/js/md5.min.js"></script>
 
-    <script>
-        document.getElementById('loginForm').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
-            const account = document.getElementById('account').value.trim();
-            const password = document.getElementById('password').value;
-            
-            if(!account || !password) {
-                showToast('请输入完整的账号和密码');
-                return;
-            }
+   <!-- 引入MD5加密库 -->
+<script src="https://cdn.bootcdn.net/ajax/libs/blueimp-md5/2.19.0/js/md5.min.js"></script>
 
-            const loading = document.getElementById('loading');
-            loading.style.display = 'flex';
+<script>
+    // 必须确保这个函数存在，否则代码运行到这里会报错停止
+    function showToast(msg) {
+        const toast = document.getElementById('toast');
+        if (toast) {
+            toast.innerText = msg;
+            toast.style.display = 'block';
+            setTimeout(() => { toast.style.display = 'none'; }, 3000);
+        } else {
+            alert(msg); // 如果找不到toast元素，就用原生弹窗
+        }
+    }
 
-            try {
-                const res = await fetch('/api/login', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        account: account, 
-                        password: md5(password) 
-                    })
-                });
+    document.getElementById('loginForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const account = document.getElementById('account').value.trim();
+        const password = document.getElementById('password').value;
+        
+        if(!account || !password) {
+            showToast('请输入完整的账号和密码');
+            return;
+        }
 
-                const data = await res.json();
+        const loading = document.getElementById('loading');
+        loading.style.display = 'flex';
+
+        try {
+            console.log('正在发送登录请求...');
+            const res = await fetch('/api/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    account: account, 
+                    password: md5(password) 
+                })
+            });
+
+            const data = await res.json();
+            console.log('服务器返回数据:', data);
+
+            loading.style.display = 'none';
+
+            if (data.success) {
+                showToast('登录成功，正在跳转...');
                 
-                setTimeout(() => {
-                    loading.style.display = 'none';
+                // 1. 存入缓存
+                localStorage.setItem('vip_user', JSON.stringify(data.user));
+                
+                // 2. 核心跳转逻辑
+                // 获取角色并处理异常情况
+                const role = (data.user && data.user.role) ? String(data.user.role).toLowerCase().trim() : 'user';
+                
+                console.log('当前用户角色为:', role);
 
-                    if (data.success) {
-                        showToast('登录成功，正在跳转...');
-                        
-                        // 存入缓存
-                        localStorage.setItem('vip_user', JSON.stringify(data.user));
-                        
-// ===========================================
-// 【修复后的跳转逻辑】
-// ===========================================
-console.log('登录成功，用户信息:', data.user); // 打印出来看具体的 role 是什么
+                // 3. 执行强制跳转
+                if (role === 'admin') {
+                    console.log('命中管理员逻辑，准备跳转 admin_super.html');
+                    window.location.replace('admin_super.html'); // 使用 replace 确保不被回退
+                } else {
+                    console.log('普通用户逻辑，准备跳转 index.html');
+                    window.location.replace('index.html');
+                }
 
-// 使用 toLowerCase() 防止大小写问题，使用 trim() 防止空格问题
-const userRole = (data.user.role || '').toLowerCase().trim();
-
-if (userRole === 'admin') {
-    console.log('检测到管理员，跳转至：admin_super.html');
-    window.location.href = 'admin_super.html';
-} else {
-    console.log('检测到普通用户，跳转至：index.html');
-    window.location.href = 'index.html';
-}
-// ===========================================
-
-                    } else {
-                        showToast(data.message || '账号或密码错误');
-                    }
-                }, 800);
-
-            } catch (err) {
-                console.error(err);
-                loading.style.display = 'none';
-                showToast('无法连接服务器，请检查网络');
+            } else {
+                showToast(data.message || '账号或密码错误');
             }
-        });
 
-        // ... showToast 函数保持不变 ...
-    </script>
+        } catch (err) {
+            console.error('JS执行错误详情:', err);
+            loading.style.display = 'none';
+            showToast('程序出错: ' + err.message);
+        }
+    });
+</script>
 </body>
 </html>
