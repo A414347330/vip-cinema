@@ -198,3 +198,74 @@ app.listen(PORT, () => {
     console.log(`👉 管理员账号补丁已启用: 16655039535`);
     console.log(`=========================================`);
 });
+// 1. 获取激活码列表 (支持筛选)
+app.post('/api/admin/codes/list', async (req, res) => {
+    const { adminUser, filter } = req.body;
+    let conn;
+    try {
+        conn = await mysql.createConnection(dbConfig);
+        let sql = "SELECT * FROM activation_codes";
+        if (filter === 'used') sql += " WHERE is_used = 1";
+        if (filter === 'unused') sql += " WHERE is_used = 0";
+        sql += " ORDER BY create_time DESC LIMIT 100";
+        const [rows] = await conn.query(sql);
+        res.json({ success: true, codes: rows });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+    finally { if (conn) conn.end(); }
+});
+
+// 2. 作废/删除激活码
+app.post('/api/admin/codes/delete', async (req, res) => {
+    const { id } = req.body;
+    let conn;
+    try {
+        conn = await mysql.createConnection(dbConfig);
+        await conn.query("DELETE FROM activation_codes WHERE id = ?", [id]);
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+    finally { if (conn) conn.end(); }
+});
+
+// 3. 批量删除用户
+app.post('/api/admin/users/batch_delete', async (req, res) => {
+    const { ids } = req.body;
+    let conn;
+    try {
+        conn = await mysql.createConnection(dbConfig);
+        await conn.query("DELETE FROM users WHERE id IN (?)", [ids]);
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+    finally { if (conn) conn.end(); }
+});
+
+// 4. 编辑用户信息 (修改角色和VIP时长)
+app.post('/api/admin/users/update', async (req, res) => {
+    const { targetId, newRole, addDays } = req.body;
+    let conn;
+    try {
+        conn = await mysql.createConnection(dbConfig);
+        // 更新角色
+        await conn.query("UPDATE users SET role = ? WHERE id = ?", [newRole, targetId]);
+        // 更新VIP天数 (如果 addDays > 0)
+        if (parseInt(addDays) > 0) {
+            await conn.query(`
+                UPDATE users 
+                SET is_active = 1, 
+                vip_expire_time = DATE_ADD(IFNULL(vip_expire_time, NOW()), INTERVAL ? DAY) 
+                WHERE id = ?`, [addDays, targetId]);
+        }
+        res.json({ success: true });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+    finally { if (conn) conn.end(); }
+});
+
+// 5. 查看验证码记录 (方便管理员手动告知用户)
+app.post('/api/admin/captchas', async (req, res) => {
+    let conn;
+    try {
+        conn = await mysql.createConnection(dbConfig);
+        const [rows] = await conn.query("SELECT * FROM email_code_temp ORDER BY create_time DESC LIMIT 20");
+        res.json({ success: true, logs: rows });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+    finally { if (conn) conn.end(); }
+});
