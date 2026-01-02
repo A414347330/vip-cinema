@@ -173,3 +173,38 @@ app.post('/api/admin/users/update', async (req, res) => {
 });
 
 app.listen(PORT, () => console.log(`✅ Server running on http://localhost:${PORT}`));
+// 确保这个接口在 index.js 中存在
+app.post('/api/activate', async (req, res) => {
+    const { username, code } = req.body; // 必须是 username 和 code
+    let conn;
+    try {
+        conn = await mysql.createConnection(dbConfig);
+        
+        // 1. 检查激活码
+        const [codes] = await conn.query("SELECT * FROM activation_codes WHERE code=? AND is_used=0", [code]);
+        
+        if (codes.length > 0) {
+            const days = codes[0].duration_days || 30;
+            const pk = await getPrimaryKeyName(conn); // 自动获取主键名
+
+            // 2. 更新激活码状态
+            await conn.query("UPDATE activation_codes SET is_used=1, used_by=? WHERE code=?", [username, code]);
+            
+            // 3. 更新用户 VIP 状态 (注意这里使用 pk 获取主键名)
+            await conn.query(`
+                UPDATE users 
+                SET is_active = 1, 
+                vip_expire_time = DATE_ADD(IFNULL(vip_expire_time, NOW()), INTERVAL ? DAY) 
+                WHERE username = ?`, [days, username]);
+            
+            res.json({ success: true, message: "激活成功" });
+        } else {
+            res.status(400).json({ success: false, message: "激活码无效或已被使用" });
+        }
+    } catch (e) {
+        console.error("激活失败详情:", e); // 这里的报错会在你 node 的黑窗口显示
+        res.status(500).json({ success: false, error: e.message });
+    } finally {
+        if (conn) conn.end();
+    }
+});
