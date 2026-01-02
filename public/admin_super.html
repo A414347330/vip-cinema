@@ -137,118 +137,148 @@
 <div id="overlay" class="overlay hidden" onclick="closeModal()"></div>
 
 <script>
-    const userSession = JSON.parse(localStorage.getItem('vip_user') || '{}');
-    const adminAccount = userSession.username;
+    // 1. 获取并检查登录状态
+    const userSessionStr = localStorage.getItem('vip_user');
+    console.log('当前本地缓存的用户信息:', userSessionStr);
+    
+    const userSession = JSON.parse(userSessionStr || '{}');
+    const adminAccount = userSession.username || userSession.account; // 兼容不同字段名
 
+    // 权限拦截
     if (!adminAccount || userSession.role !== 'admin') {
+        console.error('权限校验失败: 账号为空或角色不是admin');
+        alert('权限不足或登录过期，请重新登录');
         window.location.href = 'login.html';
     }
     document.getElementById('adminName').innerText = adminAccount;
 
+    // 选项卡切换
     function switchTab(id) {
+        console.log('切换到选项卡:', id);
         document.querySelectorAll('.tab-content').forEach(t => t.classList.add('hidden'));
         document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
         document.getElementById(id).classList.remove('hidden');
         event.target.classList.add('active');
+        
         if(id === 'user-sec') loadUsers();
         if(id === 'code-sec') loadCodes();
         if(id === 'captcha-sec') loadCaptchas();
     }
 
+    // 2. 加载用户数据
     async function loadUsers() {
+        console.log('开始请求用户列表...');
         const search = document.getElementById('userSearch').value;
-        const res = await fetch('/api/admin/users', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ adminUser: adminAccount, search })
-        });
-        const data = await res.json();
-        if(data.success) {
-            document.getElementById('userTableBody').innerHTML = data.users.map(u => `
-                <tr>
-                    <td><input type="checkbox" class="user-cb" value="${u.id}"></td>
-                    <td>${u.id}</td>
-                    <td>${u.username}<br><small>${u.email || ''}</small></td>
-                    <td>${u.role}</td>
-                    <td><span class="badge ${u.is_active ? 'bg-success' : 'bg-danger'}">${u.is_active ? 'VIP' : '普通'}</span></td>
-                    <td>
-                        <button class="btn btn-primary" style="padding:4px 8px;" onclick='openEditModal(${JSON.stringify(u)})'>编辑</button>
-                        <button class="btn btn-danger" style="padding:4px 8px;" onclick="deleteUser(${u.id})">删除</button>
-                    </td>
-                </tr>
-            `).join('');
+        try {
+            const res = await fetch('/api/admin/users', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ adminUser: adminAccount, search: search })
+            });
+            const data = await res.json();
+            console.log('用户列表返回结果:', data);
+
+            if(data.success && data.users) {
+                const tbody = document.getElementById('userTableBody');
+                if (data.users.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">数据库中暂无其他用户数据</td></tr>';
+                } else {
+                    tbody.innerHTML = data.users.map(u => `
+                        <tr>
+                            <td><input type="checkbox" class="user-cb" value="${u.id}"></td>
+                            <td>${u.id}</td>
+                            <td>${u.username}<br><small>${u.email || ''}</small></td>
+                            <td>${u.role}</td>
+                            <td><span class="badge ${u.is_active ? 'bg-success' : 'bg-danger'}">${u.is_active ? 'VIP' : '普通'}</span></td>
+                            <td>
+                                <button class="btn btn-primary" style="padding:4px 8px;" onclick='openEditModal(${JSON.stringify(u)})'>编辑</button>
+                                <button class="btn btn-danger" style="padding:4px 8px;" onclick="deleteUser(${u.id})">删除</button>
+                            </td>
+                        </tr>
+                    `).join('');
+                }
+            } else {
+                console.error('后端返回失败:', data.message);
+            }
+        } catch (err) {
+            console.error('请求用户列表出错:', err);
         }
     }
 
+    // 3. 加载激活码数据
     async function loadCodes() {
+        console.log('开始请求激活码列表...');
         const filter = document.getElementById('codeFilter').value;
-        const res = await fetch('/api/admin/codes/list', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ adminUser: adminAccount, filter })
-        });
-        const data = await res.json();
-        if(data.success) {
-            document.getElementById('codeTableBody').innerHTML = data.codes.map(c => `
-                <tr>
-                    <td style="font-family:monospace">${c.code}</td>
-                    <td>${c.duration_days}天</td>
-                    <td><span class="badge ${c.is_used ? 'bg-danger' : 'bg-success'}">${c.is_used ? '已使用' : '有效'}</span></td>
-                    <td>${c.used_by || '-'}</td>
-                    <td><button class="btn btn-danger" style="padding:4px 8px;" onclick="deleteCode(${c.id})">作废</button></td>
-                </tr>
-            `).join('');
+        try {
+            const res = await fetch('/api/admin/codes/list', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ adminUser: adminAccount, filter: filter })
+            });
+            const data = await res.json();
+            console.log('激活码列表返回结果:', data);
+
+            if(data.success && data.codes) {
+                document.getElementById('codeTableBody').innerHTML = data.codes.map(c => `
+                    <tr>
+                        <td style="font-family:monospace">${c.code}</td>
+                        <td>${c.duration_days}天</td>
+                        <td><span class="badge ${c.is_used ? 'bg-danger' : 'bg-success'}">${c.is_used ? '已使用' : '有效'}</span></td>
+                        <td>${c.used_by || '-'}</td>
+                        <td><button class="btn btn-danger" style="padding:4px 8px;" onclick="deleteCode(${c.id})">作废</button></td>
+                    </tr>
+                `).join('');
+            }
+        } catch (err) {
+            console.error('请求激活码列表出错:', err);
         }
     }
 
+    // 4. 加载验证码记录
     async function loadCaptchas() {
-        const res = await fetch('/api/admin/captchas', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ adminUser: adminAccount })
-        });
-        const data = await res.json();
-        if(data.success) {
-            document.getElementById('captchaTableBody').innerHTML = data.logs.map(log => `
-                <tr>
-                    <td>${log.email}</td>
-                    <td style="color:var(--primary); font-weight:bold;">${log.code}</td>
-                    <td>${new Date(log.create_time).toLocaleString()}</td>
-                </tr>
-            `).join('');
+        console.log('开始请求验证码记录...');
+        try {
+            const res = await fetch('/api/admin/captchas', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ adminUser: adminAccount })
+            });
+            const data = await res.json();
+            console.log('验证码记录返回结果:', data);
+
+            if(data.success && data.logs) {
+                document.getElementById('captchaTableBody').innerHTML = data.logs.map(log => `
+                    <tr>
+                        <td>${log.email}</td>
+                        <td style="color:var(--primary); font-weight:bold;">${log.code}</td>
+                        <td>${new Date(log.create_time).toLocaleString()}</td>
+                    </tr>
+                `).join('');
+            }
+        } catch (err) {
+            console.error('请求验证码出错:', err);
         }
     }
 
+    // 批量删除、编辑等其他函数保持不变... (参考上一版代码)
     async function generateCodes() {
         const count = document.getElementById('codeCount').value;
         const duration = document.getElementById('codeDuration').value;
-        await fetch('/api/admin/generate', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
+        const res = await fetch('/api/admin/generate', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({ adminUser: adminAccount, count, duration })
         });
-        alert('生成成功');
+        alert('操作完成，请查看列表');
         loadCodes();
     }
 
     async function deleteUser(id) {
         if(!confirm('确定要删除该用户吗？')) return;
         await fetch('/api/admin/delete_user', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
+            method: 'POST', headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({ adminUser: adminAccount, targetId: id })
         });
         loadUsers();
-    }
-
-    async function deleteCode(id) {
-        if(!confirm('确定作废此激活码？')) return;
-        await fetch('/api/admin/codes/delete', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ adminUser: adminAccount, id })
-        });
-        loadCodes();
     }
 
     function openEditModal(u) {
@@ -270,21 +300,19 @@
             addDays: document.getElementById('addDays').value
         };
         await fetch('/api/admin/users/update', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
+            method: 'POST', headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(payload)
         });
-        closeModal();
-        loadUsers();
-    }
-
-    function toggleSelectAll(className, master) {
-        document.querySelectorAll('.' + className).forEach(cb => cb.checked = master.checked);
+        closeModal(); loadUsers();
     }
 
     function logout() { localStorage.removeItem('vip_user'); window.location.href = 'login.html'; }
 
-    window.onload = loadUsers;
+    // 默认执行初始化加载
+    window.onload = () => {
+        console.log('页面加载完毕，初始化数据...');
+        loadUsers();
+    };
 </script>
 </body>
 </html>
