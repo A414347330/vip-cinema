@@ -1,6 +1,183 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
+    <script>
+        // ================= 核心权限控制逻辑 =================
+        let currentUser = null;
+
+        // 1. 页面加载时检查登录和激活状态
+        window.addEventListener('DOMContentLoaded', () => {
+            const userStr = localStorage.getItem('vip_user');
+            
+            // 如果没登录，直接跳去登录页 (register.html 是注册页，这里假设你有 login.html)
+            // 如果您只有 register.html，请修改为 register.html 或者对应的登录入口
+            if (!userStr) {
+                window.location.href = 'login.html'; 
+                return;
+            }
+
+            currentUser = JSON.parse(userStr);
+            document.getElementById('displayUsername').innerText = currentUser.username;
+
+            // 检查激活状态
+            checkActivationStatus();
+        });
+
+        function checkActivationStatus() {
+            // 如果本地状态显示未激活，弹出激活框
+            if (currentUser.is_active !== 1) {
+                document.getElementById('activateModal').style.display = 'flex';
+                // 禁用解析输入框和按钮
+                document.getElementById('url').disabled = true;
+                document.getElementById('playBtn').disabled = true;
+                document.getElementById('url').placeholder = "请先完成激活...";
+            } else {
+                // 已激活，确保隐藏弹窗
+                document.getElementById('activateModal').style.display = 'none';
+            }
+        }
+
+        // 2. 提交激活码
+        async function submitActivation() {
+            const code = document.getElementById('activationCode').value.trim();
+            if (!code) {
+                alert("请输入激活码");
+                return;
+            }
+
+            const btn = document.querySelector('.activate-btn');
+            btn.innerHTML = "验证中...";
+            btn.disabled = true;
+
+            try {
+                // 调用之前的 Node.js 后端接口
+                const res = await fetch('/api/activate', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ username: currentUser.username, code: code })
+                });
+                const data = await res.json();
+
+                if (data.success) {
+                    alert('🎉 激活成功！欢迎尊贵的会员。');
+                    // 更新本地存储状态
+                    currentUser.is_active = 1;
+                    localStorage.setItem('vip_user', JSON.stringify(currentUser));
+                    // 刷新页面以解锁
+                    location.reload();
+                } else {
+                    alert(data.message || '激活失败，请检查激活码');
+                    btn.innerHTML = "立即激活";
+                    btn.disabled = false;
+                }
+            } catch (err) {
+                console.error(err);
+                alert('网络连接错误，请稍后重试');
+                btn.innerHTML = "立即激活";
+                btn.disabled = false;
+            }
+        }
+
+        // 3. 退出登录
+        function logout() {
+            localStorage.removeItem('vip_user');
+            // 跳回登录页，如果是跳回注册页请改为 register.html
+            window.location.href = 'login.html';
+        }
+
+        // ================= 播放器逻辑 =================
+        function play() {
+            // 双重保险：再次检查激活状态
+            if (!currentUser || currentUser.is_active !== 1) {
+                alert("请先激活会员！");
+                return;
+            }
+
+            const urlInput = document.getElementById('url');
+            const videoUrl = urlInput.value.trim();
+            const apiSelect = document.getElementById('jk');
+            
+            if (!videoUrl) {
+                urlInput.style.borderColor = '#ff3333';
+                setTimeout(() => urlInput.style.borderColor = '#333', 1500);
+                return;
+            }
+            
+            const loading = document.getElementById('loading');
+            loading.style.display = 'flex';
+            
+            setTimeout(() => {
+                const placeholder = document.getElementById('videoPlaceholder');
+                const videoPlayer = document.getElementById('videoPlayer');
+                const timestamp = new Date().getTime();
+                const finalUrl = apiSelect.value + videoUrl + "&_t=" + timestamp;
+                
+                placeholder.style.display = 'none';
+                videoPlayer.src = finalUrl;
+                videoPlayer.style.display = 'block';
+                loading.style.display = 'none';
+            }, 800);
+        }
+
+        document.getElementById('url').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') play();
+        });
+        
+        // 只有激活用户才自动聚焦
+        window.onload = function() {
+            if(currentUser && currentUser.is_active === 1) {
+                setTimeout(() => document.getElementById('url').focus(), 500);
+            }
+        }
+
+        /* --- 极简粘贴系统 --- */
+        const customMenu = document.getElementById('customMenu');
+        const urlInput = document.getElementById('url');
+        const menuPaste = document.getElementById('menuPaste');
+
+        document.addEventListener('contextmenu', function(e) {
+            // 如果未激活，禁止右键粘贴
+            if(!currentUser || currentUser.is_active !== 1) return;
+
+            e.preventDefault(); 
+            if (e.target === urlInput) {
+                let x = e.pageX;
+                let y = e.pageY;
+                if (y + 50 > window.innerHeight) y = window.innerHeight - 50;
+                customMenu.style.left = x + 'px';
+                customMenu.style.top = y + 'px';
+                customMenu.style.display = 'block';
+            } else {
+                customMenu.style.display = 'none';
+            }
+        });
+
+        document.addEventListener('click', function(e) {
+            customMenu.style.display = 'none';
+        });
+
+        menuPaste.addEventListener('click', async function() {
+            urlInput.focus(); 
+            try {
+                const text = await navigator.clipboard.readText();
+                urlInput.value = text;
+                urlInput.style.backgroundColor = '#222';
+                setTimeout(() => urlInput.style.backgroundColor = '', 100);
+            } catch (err) {
+                alert('请按 Ctrl+V 进行粘贴');
+            }
+            customMenu.style.display = 'none';
+        });
+
+        document.addEventListener('keydown', function(e) {
+            if(e.key === 'F12' || 
+               (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'C')) || 
+               (e.ctrlKey && (e.key === 'U' || e.key === 'S'))) {
+                e.preventDefault();
+                return false;
+            }
+        });
+    </script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <!-- 强效防缓存 -->
@@ -353,182 +530,6 @@
         <div class="context-item" id="menuPaste">粘贴</div>
     </div>
 
-    <script>
-        // ================= 核心权限控制逻辑 =================
-        let currentUser = null;
-
-        // 1. 页面加载时检查登录和激活状态
-        window.addEventListener('DOMContentLoaded', () => {
-            const userStr = localStorage.getItem('vip_user');
-            
-            // 如果没登录，直接跳去登录页 (register.html 是注册页，这里假设你有 login.html)
-            // 如果您只有 register.html，请修改为 register.html 或者对应的登录入口
-            if (!userStr) {
-                window.location.href = 'login.html'; 
-                return;
-            }
-
-            currentUser = JSON.parse(userStr);
-            document.getElementById('displayUsername').innerText = currentUser.username;
-
-            // 检查激活状态
-            checkActivationStatus();
-        });
-
-        function checkActivationStatus() {
-            // 如果本地状态显示未激活，弹出激活框
-            if (currentUser.is_active !== 1) {
-                document.getElementById('activateModal').style.display = 'flex';
-                // 禁用解析输入框和按钮
-                document.getElementById('url').disabled = true;
-                document.getElementById('playBtn').disabled = true;
-                document.getElementById('url').placeholder = "请先完成激活...";
-            } else {
-                // 已激活，确保隐藏弹窗
-                document.getElementById('activateModal').style.display = 'none';
-            }
-        }
-
-        // 2. 提交激活码
-        async function submitActivation() {
-            const code = document.getElementById('activationCode').value.trim();
-            if (!code) {
-                alert("请输入激活码");
-                return;
-            }
-
-            const btn = document.querySelector('.activate-btn');
-            btn.innerHTML = "验证中...";
-            btn.disabled = true;
-
-            try {
-                // 调用之前的 Node.js 后端接口
-                const res = await fetch('/api/activate', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ username: currentUser.username, code: code })
-                });
-                const data = await res.json();
-
-                if (data.success) {
-                    alert('🎉 激活成功！欢迎尊贵的会员。');
-                    // 更新本地存储状态
-                    currentUser.is_active = 1;
-                    localStorage.setItem('vip_user', JSON.stringify(currentUser));
-                    // 刷新页面以解锁
-                    location.reload();
-                } else {
-                    alert(data.message || '激活失败，请检查激活码');
-                    btn.innerHTML = "立即激活";
-                    btn.disabled = false;
-                }
-            } catch (err) {
-                console.error(err);
-                alert('网络连接错误，请稍后重试');
-                btn.innerHTML = "立即激活";
-                btn.disabled = false;
-            }
-        }
-
-        // 3. 退出登录
-        function logout() {
-            localStorage.removeItem('vip_user');
-            // 跳回登录页，如果是跳回注册页请改为 register.html
-            window.location.href = 'login.html';
-        }
-
-        // ================= 播放器逻辑 =================
-        function play() {
-            // 双重保险：再次检查激活状态
-            if (!currentUser || currentUser.is_active !== 1) {
-                alert("请先激活会员！");
-                return;
-            }
-
-            const urlInput = document.getElementById('url');
-            const videoUrl = urlInput.value.trim();
-            const apiSelect = document.getElementById('jk');
-            
-            if (!videoUrl) {
-                urlInput.style.borderColor = '#ff3333';
-                setTimeout(() => urlInput.style.borderColor = '#333', 1500);
-                return;
-            }
-            
-            const loading = document.getElementById('loading');
-            loading.style.display = 'flex';
-            
-            setTimeout(() => {
-                const placeholder = document.getElementById('videoPlaceholder');
-                const videoPlayer = document.getElementById('videoPlayer');
-                const timestamp = new Date().getTime();
-                const finalUrl = apiSelect.value + videoUrl + "&_t=" + timestamp;
-                
-                placeholder.style.display = 'none';
-                videoPlayer.src = finalUrl;
-                videoPlayer.style.display = 'block';
-                loading.style.display = 'none';
-            }, 800);
-        }
-
-        document.getElementById('url').addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') play();
-        });
-        
-        // 只有激活用户才自动聚焦
-        window.onload = function() {
-            if(currentUser && currentUser.is_active === 1) {
-                setTimeout(() => document.getElementById('url').focus(), 500);
-            }
-        }
-
-        /* --- 极简粘贴系统 --- */
-        const customMenu = document.getElementById('customMenu');
-        const urlInput = document.getElementById('url');
-        const menuPaste = document.getElementById('menuPaste');
-
-        document.addEventListener('contextmenu', function(e) {
-            // 如果未激活，禁止右键粘贴
-            if(!currentUser || currentUser.is_active !== 1) return;
-
-            e.preventDefault(); 
-            if (e.target === urlInput) {
-                let x = e.pageX;
-                let y = e.pageY;
-                if (y + 50 > window.innerHeight) y = window.innerHeight - 50;
-                customMenu.style.left = x + 'px';
-                customMenu.style.top = y + 'px';
-                customMenu.style.display = 'block';
-            } else {
-                customMenu.style.display = 'none';
-            }
-        });
-
-        document.addEventListener('click', function(e) {
-            customMenu.style.display = 'none';
-        });
-
-        menuPaste.addEventListener('click', async function() {
-            urlInput.focus(); 
-            try {
-                const text = await navigator.clipboard.readText();
-                urlInput.value = text;
-                urlInput.style.backgroundColor = '#222';
-                setTimeout(() => urlInput.style.backgroundColor = '', 100);
-            } catch (err) {
-                alert('请按 Ctrl+V 进行粘贴');
-            }
-            customMenu.style.display = 'none';
-        });
-
-        document.addEventListener('keydown', function(e) {
-            if(e.key === 'F12' || 
-               (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'C')) || 
-               (e.ctrlKey && (e.key === 'U' || e.key === 'S'))) {
-                e.preventDefault();
-                return false;
-            }
-        });
-    </script>
+    
 </body>
 </html>
