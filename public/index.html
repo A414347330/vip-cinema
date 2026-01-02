@@ -1,2 +1,410 @@
-// 修改为相对路径，这样无论部署在哪里都能自动识别
-const MYSQL_API_URL = "/api/mysql";
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>尊享VIP会员注册 - 黑金至尊版</title>
+<!-- 引入字体和图标 -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
+
+<style>
+    :root {
+        --gold-primary: #e0c388;
+        --gold-dark: #bfa168;
+        --bg-dark: #0f0f0f;
+        --glass-bg: rgba(25, 25, 25, 0.85);
+        --input-bg: rgba(0, 0, 0, 0.5);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+        margin: 0; padding: 0;
+        font-family: 'Noto Sans SC', sans-serif;
+        background-color: var(--bg-dark);
+        color: #fff;
+        min-height: 100vh;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        /* 电影质感背景图 */
+        background-image: url('https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?q=80&w=2070&auto=format&fit=crop');
+        background-size: cover;
+        background-position: center;
+        background-attachment: fixed;
+    }
+
+    /* 背景暗色遮罩 */
+    body::before {
+        content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+        background: radial-gradient(circle at center, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0.95) 100%);
+        z-index: 0;
+    }
+
+    .main-wrapper {
+        position: relative; z-index: 1; width: 100%; padding: 20px;
+        display: flex; justify-content: center;
+    }
+
+    .register-card {
+        width: 100%; max-width: 440px;
+        padding: 40px 30px;
+        background: var(--glass-bg);
+        backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+        border: 1px solid rgba(224, 195, 136, 0.2);
+        border-radius: 12px;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8);
+        animation: slideUp 0.8s cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+
+    @keyframes slideUp {
+        from { opacity: 0; transform: translateY(40px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    .header { text-align: center; margin-bottom: 30px; }
+    
+    .logo {
+        font-family: 'Playfair Display', serif;
+        font-size: 1.2rem;
+        color: var(--gold-primary);
+        letter-spacing: 3px;
+        margin-bottom: 10px;
+        text-transform: uppercase;
+        display: flex; align-items: center; justify-content: center; gap: 10px;
+    }
+
+    .title {
+        font-size: 1.8rem;
+        font-weight: 700;
+        background: linear-gradient(to right, #fbeea9, #e0c388, #bfa168);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        margin: 0;
+    }
+
+    .subtitle { color: rgba(255,255,255,0.5); font-size: 0.9rem; margin-top: 5px; }
+
+    /* 输入框组 */
+    .input-group { position: relative; margin-bottom: 20px; }
+    
+    .form-control {
+        width: 100%; height: 50px;
+        background: var(--input-bg);
+        border: 1px solid rgba(255,255,255,0.15);
+        border-radius: 8px;
+        padding-left: 45px; padding-right: 15px;
+        color: #fff; font-size: 1rem;
+        transition: 0.3s;
+    }
+    
+    .form-control:focus {
+        border-color: var(--gold-primary);
+        outline: none;
+        box-shadow: 0 0 15px rgba(224, 195, 136, 0.15);
+        background: rgba(0,0,0,0.8);
+    }
+
+    .icon {
+        position: absolute; left: 16px; top: 50%;
+        transform: translateY(-50%);
+        color: rgba(255,255,255,0.4);
+        transition: 0.3s;
+    }
+
+    .form-control:focus + .icon { color: var(--gold-primary); }
+
+    /* 验证码区域 */
+    .code-wrapper { display: flex; gap: 10px; }
+    
+    .code-btn {
+        width: 120px;
+        background: transparent;
+        border: 1px solid var(--gold-dark);
+        color: var(--gold-primary);
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 0.85rem;
+        transition: 0.3s;
+    }
+    .code-btn:hover:not(:disabled) {
+        background: rgba(224, 195, 136, 0.1);
+    }
+    .code-btn:disabled { opacity: 0.5; cursor: not-allowed; border-color: #555; color: #555; }
+
+    /* 提交按钮 */
+    .submit-btn {
+        width: 100%; height: 52px;
+        margin-top: 10px;
+        border: none; border-radius: 8px;
+        background: linear-gradient(135deg, #bfa168 0%, #e0c388 50%, #bfa168 100%);
+        background-size: 200% auto;
+        color: #000; font-weight: bold; font-size: 1.1rem;
+        cursor: pointer; transition: 0.5s;
+    }
+    .submit-btn:hover {
+        background-position: right center;
+        transform: translateY(-2px);
+        box-shadow: 0 5px 20px rgba(224, 195, 136, 0.4);
+    }
+
+    /* 底部链接 */
+    .footer { text-align: center; margin-top: 25px; font-size: 0.9rem; color: #666; }
+    .footer a { color: var(--gold-primary); text-decoration: none; margin-left: 5px; }
+    .footer a:hover { text-decoration: underline; }
+
+    /* 加载动画 */
+    .loading-overlay {
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0,0,0,0.9);
+        z-index: 999;
+        display: none;
+        flex-direction: column; align-items: center; justify-content: center;
+    }
+    .spinner {
+        width: 40px; height: 40px;
+        border: 3px solid rgba(224, 195, 136, 0.3);
+        border-top-color: var(--gold-primary);
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+    <div class="main-wrapper">
+        <div class="register-card">
+            <div class="header">
+                <div class="logo"><i class="fas fa-crown"></i> SVIP CINEMA</div>
+                <h1 class="title">会员注册</h1>
+                <p class="subtitle">开启极致视听盛宴</p>
+            </div>
+
+            <form id="regForm">
+                <!-- 手机号 (映射为username) -->
+                <div class="input-group">
+                    <input type="tel" class="form-control" id="phone" placeholder="手机号码" required>
+                    <i class="fas fa-mobile-screen icon"></i>
+                </div>
+
+                <!-- 邮箱 -->
+                <div class="input-group">
+                    <input type="email" class="form-control" id="email" placeholder="电子邮箱" required>
+                    <i class="fas fa-envelope icon"></i>
+                </div>
+
+                <!-- 验证码 -->
+                <div class="input-group code-wrapper">
+                    <div style="position:relative; flex:1;">
+                        <input type="text" class="form-control" id="code" placeholder="6位验证码" required>
+                        <i class="fas fa-shield-alt icon"></i>
+                    </div>
+                    <button type="button" class="code-btn" id="codeBtn" onclick="sendCode()">获取验证码</button>
+                </div>
+
+                <!-- 密码 -->
+                <div class="input-group">
+                    <input type="password" class="form-control" id="pwd" placeholder="设置密码" required>
+                    <i class="fas fa-lock icon"></i>
+                </div>
+
+                <!-- 确认密码 -->
+                <div class="input-group">
+                    <input type="password" class="form-control" id="pwd2" placeholder="确认密码" required>
+                    <i class="fas fa-check-circle icon"></i>
+                </div>
+
+                <button type="submit" class="submit-btn">立即注册</button>
+            </form>
+
+            <div class="footer">
+                已有账号? <a href="#">立即登录</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- 加载层 -->
+    <div class="loading-overlay" id="loading">
+        <div class="spinner"></div>
+        <p style="color:var(--gold-primary); margin-top:15px;">正在处理...</p>
+    </div>
+
+    <!-- 脚本引入 -->
+    <script src="https://cdn.jsdelivr.net/npm/emailjs-com@3/dist/email.min.js"></script>
+    <script src="https://cdn.bootcdn.net/ajax/libs/blueimp-md5/2.19.0/js/md5.min.js"></script>
+
+    <script>
+        // ================= 配置中心 =================
+        // 1. EmailJS 配置 (请填入你的真实ID)
+        const EMAIL_USER_ID = "你的User_ID"; 
+        const EMAIL_SERVICE_ID = "你的Service_ID"; 
+        const EMAIL_TEMPLATE_ID = "你的Template_ID"; 
+
+        // 2. 数据库接口 (适配 Vercel)
+        // 注意：Vercel 部署后，前端访问后端用相对路径即可
+        const API_URL = "/api/mysql"; 
+        // ===========================================
+
+        emailjs.init(EMAIL_USER_ID);
+        let isCountDown = false;
+
+        // --- 功能：发送验证码 ---
+        function sendCode() {
+            const email = document.getElementById('email').value.trim();
+            const phone = document.getElementById('phone').value.trim();
+            const btn = document.getElementById('codeBtn');
+
+            if(!email || !phone) { showToast('请先输入手机号和邮箱'); return; }
+            if(isCountDown) return;
+
+            showToast('正在请求...', true);
+
+            // 1. 检查今日发送次数 & 频率
+            fetch(API_URL, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    sql: "SELECT COUNT(*) as count FROM email_code_temp WHERE email=? AND DATE(create_time)=CURDATE(); SELECT * FROM email_code_temp WHERE email=? AND TIMESTAMPDIFF(MINUTE,create_time,NOW()) < 1",
+                    params: [email, email]
+                })
+            })
+            .then(r => r.json())
+            .then(data => {
+                const dayCount = data[0][0].count; // 根据mysql2返回结构可能需调整
+                const recent = data[1].length;
+
+                if(recent > 0) { showToast('操作太频繁，请稍后'); return; }
+                if(dayCount >= 10) { showToast('今日限额已满'); return; }
+
+                // 2. 发送邮件
+                const code = Math.floor(100000 + Math.random() * 900000);
+                
+                // 存入数据库
+                fetch(API_URL, {
+                    method: "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({
+                        sql: "INSERT INTO email_code_temp(email, code, create_time) VALUES(?, ?, NOW())",
+                        params: [email, code]
+                    })
+                });
+
+                // 发送邮件 (EmailJS)
+                emailjs.send(EMAIL_SERVICE_ID, EMAIL_TEMPLATE_ID, {
+                    to_email: email,
+                    code: code
+                }).then(() => {
+                    showToast('验证码已发送');
+                    startTimer(btn);
+                }).catch(err => {
+                    console.error(err);
+                    showToast('邮件发送失败，请检查配置');
+                });
+            })
+            .catch(err => {
+                console.error(err);
+                showToast('数据库连接失败');
+            });
+        }
+
+        // --- 功能：注册提交 ---
+        document.getElementById('regForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const phone = document.getElementById('phone').value.trim();
+            const email = document.getElementById('email').value.trim();
+            const code = document.getElementById('code').value.trim();
+            const pwd = document.getElementById('pwd').value;
+            const pwd2 = document.getElementById('pwd2').value;
+
+            if(pwd !== pwd2) { showToast('两次密码不一致'); return; }
+
+            document.getElementById('loading').style.display = 'flex';
+
+            // 1. 验证验证码
+            fetch(API_URL, {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({
+                    sql: "SELECT * FROM email_code_temp WHERE email=? AND code=? AND TIMESTAMPDIFF(MINUTE,create_time,NOW()) <= 5 ORDER BY id DESC LIMIT 1",
+                    params: [email, code]
+                })
+            })
+            .then(r => r.json())
+            .then(data => {
+                const rows = (Array.isArray(data) && data[0] && Array.isArray(data[0])) ? data[0] : data;
+                
+                if(rows.length > 0) {
+                    // 2. 验证通过，写入用户表
+                    // 映射：phone -> username
+                    const hash = md5(pwd);
+                    
+                    fetch(API_URL, {
+                        method: "POST",
+                        headers: {"Content-Type": "application/json"},
+                        body: JSON.stringify({
+                            sql: "INSERT INTO users(username, email, password_hash, registration_date) VALUES(?, ?, ?, NOW())",
+                            params: [phone, email, hash]
+                        })
+                    })
+                    .then(() => {
+                        document.getElementById('loading').style.display = 'none';
+                        showToast('🎉 注册成功！欢迎加入VIP');
+                        // 此处可跳转
+                        // window.location.href = "login.html";
+                    })
+                    .catch(err => {
+                        document.getElementById('loading').style.display = 'none';
+                        showToast('注册失败：手机或邮箱已存在');
+                    });
+                } else {
+                    document.getElementById('loading').style.display = 'none';
+                    showToast('验证码错误或已失效');
+                }
+            })
+            .catch(err => {
+                document.getElementById('loading').style.display = 'none';
+                showToast('网络错误');
+            });
+        });
+
+        // --- 工具：倒计时 ---
+        function startTimer(btn) {
+            isCountDown = true;
+            let sec = 60;
+            btn.disabled = true;
+            const timer = setInterval(() => {
+                btn.innerText = `${sec}s 后重发`;
+                sec--;
+                if(sec < 0) {
+                    clearInterval(timer);
+                    btn.innerText = '获取验证码';
+                    btn.disabled = false;
+                    isCountDown = false;
+                }
+            }, 1000);
+        }
+
+        // --- 工具：提示框 ---
+        function showToast(msg) {
+            const div = document.createElement('div');
+            div.innerHTML = `<i class="fas fa-info-circle"></i> ${msg}`;
+            div.style.cssText = `
+                position: fixed; top: 15%; left: 50%; transform: translateX(-50%);
+                background: rgba(0,0,0,0.85); border: 1px solid var(--gold-primary);
+                color: var(--gold-primary); padding: 12px 25px; border-radius: 50px;
+                z-index: 1000; font-size: 0.9rem; animation: fadeIn 0.3s;
+            `;
+            document.body.appendChild(div);
+            setTimeout(() => div.remove(), 3000);
+        }
+        
+        // 动态注入动画
+        const s = document.createElement('style');
+        s.innerHTML = `@keyframes fadeIn { from {opacity:0; transform:translate(-50%, -20px);} to {opacity:1; transform:translate(-50%, 0);} }`;
+        document.head.appendChild(s);
+    </script>
+</body>
+</html>
