@@ -614,13 +614,18 @@
 
     .logout-link:hover { color: #fff; }
 
+    /* 解析栏：始终单行显示（移动端也不换行） */
+    .parser-inner { flex-wrap: nowrap; }
+    .url-input { min-width: 0; }
+    .api-select { width: clamp(140px, 22vw, 240px); flex: 0 0 auto; }
+
     @media (max-width: 900px) {
-        :root { --bar-height: 140px; }
+        :root { --bar-height: 90px; }
         .main-viewport { padding: 10px; }
-        .parser-inner { flex-wrap: wrap; }
-        .url-input { flex-basis: 100%; order: 1; }
-        .api-select { flex: 1; order: 2; }
-        .parse-btn { flex: 0 0 auto; order: 3; padding: 0 25px; }
+        .parser-inner { gap: 10px; }
+        .url-input { height: 46px; padding: 0 16px; font-size: 0.95rem; }
+        .api-select { height: 46px; padding: 0 14px; }
+        .parse-btn { height: 46px; padding: 0 18px; }
         .parse-btn span { display: none; }
         .vip-main-title { font-size: 1.5rem; }
     }
