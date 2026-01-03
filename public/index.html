@@ -6,7 +6,68 @@
         let currentUser = null;
 
         // 1. 页面加载时检查登录和激活状态
+        // 用户名展示脱敏：如果是手机号，隐藏中间 4 位
+        function maskUsername(username) {
+            const str = String(username ?? '');
+            // 11 位纯数字手机号：138****5678
+            if (/^\d{11}$/.test(str)) {
+                return str.replace(/^(\d{3})\d{4}(\d{4})$/, '$1****$2');
+            }
+            return str;
+        }
+
+        function applyAutoRotateLayout() {
+            const needRotate = window.innerWidth < window.innerHeight;
+            document.body.classList.toggle('force-landscape', needRotate);
+        }
+
+        function initPasteMenu() {
+            /* --- 极简粘贴系统 --- */
+            const customMenu = document.getElementById('customMenu');
+            const urlInput = document.getElementById('url');
+            const menuPaste = document.getElementById('menuPaste');
+            if (!customMenu || !urlInput || !menuPaste) return;
+
+            document.addEventListener('contextmenu', function(e) {
+                // 如果未激活，禁止右键粘贴
+                if(!currentUser || currentUser.is_active !== 1) return;
+
+                e.preventDefault(); 
+                if (e.target === urlInput) {
+                    let x = e.pageX;
+                    let y = e.pageY;
+                    if (y + 50 > window.innerHeight) y = window.innerHeight - 50;
+                    customMenu.style.left = x + 'px';
+                    customMenu.style.top = y + 'px';
+                    customMenu.style.display = 'block';
+                } else {
+                    customMenu.style.display = 'none';
+                }
+            });
+
+            document.addEventListener('click', function() {
+                customMenu.style.display = 'none';
+            });
+
+            menuPaste.addEventListener('click', async function() {
+                urlInput.focus(); 
+                try {
+                    const text = await navigator.clipboard.readText();
+                    urlInput.value = text;
+                    urlInput.style.backgroundColor = '#222';
+                    setTimeout(() => urlInput.style.backgroundColor = '', 100);
+                } catch (err) {
+                    alert('请按 Ctrl+V 进行粘贴');
+                }
+                customMenu.style.display = 'none';
+            });
+        }
+
         window.addEventListener('DOMContentLoaded', () => {
+            applyAutoRotateLayout();
+            window.addEventListener('resize', applyAutoRotateLayout);
+            window.addEventListener('orientationchange', applyAutoRotateLayout);
+
             const userStr = localStorage.getItem('vip_user');
             
             // 如果没登录，直接跳去登录页 (register.html 是注册页，这里假设你有 login.html)
@@ -17,13 +78,28 @@
             }
 
             currentUser = JSON.parse(userStr);
-            document.getElementById('displayUsername').innerText = currentUser.username;
+            document.getElementById('displayUsername').innerText = maskUsername(currentUser.username);
+            updateVipHeaderStatus();
+            initPasteMenu();
 
             // 检查激活状态
             checkActivationStatus();
         });
 
+        function updateVipHeaderStatus() {
+            const el = document.getElementById('vipStatusBadge');
+            if (!el) return;
+
+            const active = !!(currentUser && Number(currentUser.is_active) === 1);
+            el.className = 'vip-state-badge ' + (active ? 'active' : 'inactive');
+            el.innerHTML = active
+                ? '<i class="fas fa-crown"></i> VIP 已激活'
+                : '<i class="fas fa-lock"></i> VIP 未激活';
+        }
+
         function checkActivationStatus() {
+            updateVipHeaderStatus();
+
             // 如果本地状态显示未激活，弹出激活框
             if (currentUser.is_active !== 1) {
                 document.getElementById('activateModal').style.display = 'flex';
@@ -130,44 +206,7 @@
             }
         }
 
-        /* --- 极简粘贴系统 --- */
-        const customMenu = document.getElementById('customMenu');
-        const urlInput = document.getElementById('url');
-        const menuPaste = document.getElementById('menuPaste');
-
-        document.addEventListener('contextmenu', function(e) {
-            // 如果未激活，禁止右键粘贴
-            if(!currentUser || currentUser.is_active !== 1) return;
-
-            e.preventDefault(); 
-            if (e.target === urlInput) {
-                let x = e.pageX;
-                let y = e.pageY;
-                if (y + 50 > window.innerHeight) y = window.innerHeight - 50;
-                customMenu.style.left = x + 'px';
-                customMenu.style.top = y + 'px';
-                customMenu.style.display = 'block';
-            } else {
-                customMenu.style.display = 'none';
-            }
-        });
-
-        document.addEventListener('click', function(e) {
-            customMenu.style.display = 'none';
-        });
-
-        menuPaste.addEventListener('click', async function() {
-            urlInput.focus(); 
-            try {
-                const text = await navigator.clipboard.readText();
-                urlInput.value = text;
-                urlInput.style.backgroundColor = '#222';
-                setTimeout(() => urlInput.style.backgroundColor = '', 100);
-            } catch (err) {
-                alert('请按 Ctrl+V 进行粘贴');
-            }
-            customMenu.style.display = 'none';
-        });
+        //（右键粘贴系统已迁移到 DOMContentLoaded 内部初始化，避免元素尚未渲染导致报错）
 
         document.addEventListener('keydown', function(e) {
             if(e.key === 'F12' || 
@@ -227,9 +266,28 @@
     }
 
     /* --- 布局设定 --- */
+    /* 竖屏时自动旋转为横屏展示（宽 < 高触发） */
+    .rotate-shell {
+        position: relative;
+        width: 100vw;
+        height: 100vh;
+        overflow: hidden;
+    }
+
+    body.force-landscape { overflow: hidden; }
+    body.force-landscape .rotate-shell {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        width: 100vh;
+        height: 100vw;
+        transform: translate(-50%, -50%) rotate(90deg);
+        transform-origin: center;
+    }
+
     .main-viewport {
         width: 100%;
-        height: calc(100vh - var(--bar-height));
+        height: calc(100% - var(--bar-height));
         /* 视口四周保留 20px 间隙 */
         padding: 20px;
         display: flex;
@@ -286,6 +344,32 @@
         gap: 15px;
     }
     .user-name { color: var(--primary); font-weight: bold; }
+
+    /* 头部 VIP 状态徽标：与后台 badge 风格一致（黑金） */
+    .vip-state-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 3px 10px;
+        border-radius: 999px;
+        font-size: 0.78rem;
+        font-weight: 800;
+        letter-spacing: 0.5px;
+        border: 1px solid rgba(212, 175, 55, 0.25);
+        background: rgba(255,255,255,0.04);
+        color: #e9e9e9;
+    }
+    .vip-state-badge.active {
+        border-color: rgba(212, 175, 55, 0.38);
+        background: rgba(212, 175, 55, 0.12);
+        color: #f3d27a;
+    }
+    .vip-state-badge.inactive {
+        border-color: rgba(255,255,255,0.16);
+        background: rgba(180,180,180,0.10);
+        color: #cfcfcf;
+    }
+
     .logout-btn { 
         cursor: pointer; color: #666; transition: 0.3s; 
         font-size: 0.85rem; border: 1px solid #333; padding: 2px 8px; border-radius: 4px;
@@ -329,17 +413,17 @@
 
     /* --- 底部解析条 --- */
     .fixed-parser-bar {
-        position: fixed; 
-        bottom: 0; 
-        left: 0; 
-        right: 0; 
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
         height: var(--bar-height);
         background: rgba(8, 8, 8, 0.95); backdrop-filter: blur(20px);
         border-top: 1px solid rgba(212, 175, 55, 0.3);
         box-shadow: 0 -10px 50px rgba(0,0,0,1);
         z-index: 1000;
         display: flex; align-items: center; justify-content: center;
-        padding: 0 20px; 
+        padding: 0 20px;
         box-sizing: border-box;
     }
     
@@ -377,7 +461,7 @@
     .parse-btn:disabled { background: #333; color: #777; cursor: not-allowed; }
 
     .loading-layer {
-        position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.92);
+        position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.92);
         z-index: 2000; display: none; flex-direction: column; justify-content: center; align-items: center;
     }
 
@@ -411,41 +495,123 @@
         font-weight: 700;
     }
 
-    /* --- 激活码弹窗样式 (新增) --- */
+    /* --- 激活码弹窗样式：与主页黑金风格一致 --- */
     .activate-modal {
-        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-        background: rgba(0,0,0,0.96); /* 深黑背景遮罩 */
+        position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+        background:
+            radial-gradient(circle at 50% 15%, rgba(212, 175, 55, 0.18), transparent 45%),
+            rgba(0,0,0,0.92);
+        backdrop-filter: blur(18px);
         z-index: 3000;
         display: none; /* 默认隐藏 */
         flex-direction: column;
         justify-content: center;
         align-items: center;
+        padding: 20px;
+        box-sizing: border-box;
     }
+
     .activate-box {
-        width: 360px;
-        padding: 40px 30px;
-        background: #111;
-        border: 1px solid var(--primary);
-        box-shadow: 0 0 30px rgba(212, 175, 55, 0.2);
-        border-radius: 8px;
+        width: 380px;
+        max-width: 100%;
+        padding: 42px 34px;
+        background:
+            radial-gradient(circle at 50% 0%, rgba(212, 175, 55, 0.10), transparent 60%),
+            linear-gradient(180deg, #121212 0%, #0b0b0b 100%);
+        border: 1px solid rgba(212, 175, 55, 0.35);
+        box-shadow:
+            0 0 0 1px rgba(212, 175, 55, 0.12),
+            0 20px 80px rgba(0,0,0,0.85),
+            0 0 40px rgba(212, 175, 55, 0.12);
+        border-radius: 12px;
         text-align: center;
+        position: relative;
+        overflow: hidden;
     }
-    .lock-icon { font-size: 3rem; color: var(--primary); margin-bottom: 20px; }
-    .activate-title { color: #fff; font-size: 1.5rem; margin-bottom: 10px; font-weight: bold; }
-    .activate-desc { color: #888; font-size: 0.9rem; margin-bottom: 25px; }
+
+    .activate-box::before {
+        content: '';
+        position: absolute;
+        top: 0; left: 0; right: 0;
+        height: 1px;
+        background: linear-gradient(90deg, transparent, var(--primary), transparent);
+        opacity: 0.6;
+    }
+
+    .lock-icon {
+        font-size: 3.2rem;
+        margin-bottom: 18px;
+        background: var(--gold-gradient);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        filter: drop-shadow(0 6px 18px rgba(212, 175, 55, 0.12));
+    }
+
+    .activate-title {
+        color: #fff;
+        font-family: 'Noto Serif SC', serif;
+        font-size: 1.6rem;
+        margin-bottom: 10px;
+        letter-spacing: 1px;
+        background: var(--gold-gradient);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+
+    .activate-desc {
+        color: #9a9a9a;
+        font-size: 0.92rem;
+        margin-bottom: 24px;
+    }
+
     .code-input {
-        width: 100%; height: 45px; background: #000; border: 1px solid #444;
-        color: var(--primary); text-align: center; font-size: 1rem; letter-spacing: 2px;
-        border-radius: 4px; margin-bottom: 20px;
+        width: 100%;
+        height: 48px;
+        background: rgba(0,0,0,0.65);
+        border: 1px solid rgba(255,255,255,0.14);
+        color: var(--primary);
+        text-align: center;
+        font-size: 1rem;
+        letter-spacing: 2px;
+        border-radius: 8px;
+        margin-bottom: 18px;
+        transition: border-color 0.25s, box-shadow 0.25s, background 0.25s;
     }
-    .code-input:focus { border-color: var(--primary); outline: none; }
+
+    .code-input:focus {
+        border-color: rgba(212, 175, 55, 0.65);
+        box-shadow: 0 0 0 4px rgba(212, 175, 55, 0.10);
+        background: rgba(0,0,0,0.85);
+        outline: none;
+    }
+
     .activate-btn {
-        width: 100%; height: 45px; background: var(--primary);
-        color: #000; font-weight: bold; border: none; border-radius: 4px; cursor: pointer;
-        font-size: 1rem; transition: 0.3s;
+        width: 100%;
+        height: 50px;
+        background: var(--gold-gradient);
+        background-size: 200% auto;
+        color: #1a1a1a;
+        font-weight: 800;
+        border: none;
+        border-radius: 10px;
+        cursor: pointer;
+        font-size: 1.05rem;
+        transition: all 0.25s ease;
     }
-    .activate-btn:hover { background: #b38728; }
-    .logout-link { margin-top: 20px; display: block; color: #666; font-size: 0.85rem; text-decoration: none; cursor: pointer;}
+
+    .activate-btn:hover { background-position: right center; color: #000; }
+    .activate-btn:disabled { background: #333; color: #777; cursor: not-allowed; }
+
+    .logout-link {
+        margin-top: 18px;
+        display: block;
+        color: #7a7a7a;
+        font-size: 0.88rem;
+        text-decoration: none;
+        cursor: pointer;
+        transition: color 0.2s;
+    }
+
     .logout-link:hover { color: #fff; }
 
     @media (max-width: 900px) {
@@ -462,6 +628,7 @@
 </head>
 <body>
 
+    <div id="rotateShell" class="rotate-shell">
     <!-- 主界面 -->
     <div class="main-viewport">
         <div class="video-wrapper">
@@ -470,6 +637,7 @@
                 
                 <!-- 新增：用户信息/退出 -->
                 <div class="user-info" id="headerUserInfo">
+                    <span id="vipStatusBadge" class="vip-state-badge inactive"><i class="fas fa-lock"></i> VIP 未激活</span>
                     <span id="displayUsername" class="user-name"></span>
                     <span class="logout-btn" onclick="logout()">退出</span>
                 </div>
@@ -530,6 +698,6 @@
         <div class="context-item" id="menuPaste">粘贴</div>
     </div>
 
-    
+    </div>
 </body>
 </html>

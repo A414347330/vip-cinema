@@ -42,10 +42,17 @@ async function initDB() {
 }
 initDB();
 
+// --- 辅助函数：获取表的主键字段名 ---
+async function getTablePrimaryKeyName(conn, table) {
+    const allowList = new Set(['users', 'activation_codes', 'email_code_temp']);
+    const safeTable = allowList.has(table) ? table : 'users';
+    const [rows] = await conn.query(`SHOW KEYS FROM ${safeTable} WHERE Key_name = 'PRIMARY'`);
+    return rows.length > 0 ? rows[0].Column_name : 'id';
+}
+
 // --- 辅助函数：获取用户表的主键字段名 ---
 async function getPrimaryKeyName(conn) {
-    const [rows] = await conn.query("SHOW KEYS FROM users WHERE Key_name = 'PRIMARY'");
-    return rows.length > 0 ? rows[0].Column_name : 'id';
+    return await getTablePrimaryKeyName(conn, 'users');
 }
 
 // --- 核心 API ---
@@ -79,25 +86,37 @@ app.post('/api/login', async (req, res) => {
     finally { if (conn) conn.end(); }
 });
 
-// 2. 获取用户列表 (修复 ID 字段报错)
+// 2. 获取用户列表（支持分页）
 app.post('/api/admin/users', async (req, res) => {
-    const { adminUser, search } = req.body;
+    const { adminUser, search, page = 1, pageSize = 10 } = req.body;
     let conn;
     try {
         conn = await mysql.createConnection(dbConfig);
         const pk = await getPrimaryKeyName(conn); // 自动获取主键名，可能是 id 或 user_id
-        
-        let sql = `SELECT ${pk} AS id, username, email, role, is_active, vip_expire_time FROM users`;
+
+        const safePageSize = Math.min(Math.max(parseInt(pageSize, 10) || 10, 1), 50);
+        const safePage = Math.max(parseInt(page, 10) || 1, 1);
+        const offset = (safePage - 1) * safePageSize;
+
+        let where = '';
         let params = [];
         if (search) {
-            sql += " WHERE username LIKE ? OR email LIKE ?";
+            where = " WHERE username LIKE ? OR email LIKE ?";
             params = [`%${search}%`, `%${search}%`];
         }
-        const [rows] = await conn.query(sql + ` ORDER BY ${pk} DESC`, params);
-        res.json({ success: true, users: rows });
-    } catch (e) { 
+
+        // 总数
+        const [countRows] = await conn.query(`SELECT COUNT(*) AS total FROM users${where}`, params);
+        const total = (countRows && countRows[0] && countRows[0].total) ? Number(countRows[0].total) : 0;
+
+        // 分页数据
+        const listSql = `SELECT ${pk} AS id, username, email, role, is_active, vip_expire_time FROM users${where} ORDER BY ${pk} DESC LIMIT ? OFFSET ?`;
+        const [rows] = await conn.query(listSql, [...params, safePageSize, offset]);
+
+        res.json({ success: true, users: rows, page: safePage, pageSize: safePageSize, total });
+    } catch (e) {
         console.error(e);
-        res.status(500).json({ success: false, error: e.message }); 
+        res.status(500).json({ success: false, error: e.message });
     }
     finally { if (conn) conn.end(); }
 });
@@ -115,19 +134,72 @@ app.post('/api/admin/delete_user', async (req, res) => {
     finally { if (conn) conn.end(); }
 });
 
-// 4. 获取激活码列表
+// 4. 获取激活码列表（支持分页 + 搜索）
 app.post('/api/admin/codes/list', async (req, res) => {
     let conn;
     try {
         conn = await mysql.createConnection(dbConfig);
-        const { filter } = req.body;
-        let sql = "SELECT * FROM activation_codes";
-        if (filter === 'used') sql += " WHERE is_used = 1";
-        if (filter === 'unused') sql += " WHERE is_used = 0";
-        const [rows] = await conn.query(sql + " ORDER BY create_time DESC");
-        res.json({ success: true, codes: rows });
-    } catch (e) { res.status(500).json({ error: e.message }); }
+        const { filter, page = 1, pageSize = 10, search } = req.body;
+
+        const safePageSize = Math.min(Math.max(parseInt(pageSize, 10) || 10, 1), 50);
+        const safePage = Math.max(parseInt(page, 10) || 1, 1);
+        const offset = (safePage - 1) * safePageSize;
+
+        const pk = await getTablePrimaryKeyName(conn, 'activation_codes');
+
+        const whereParts = [];
+        const params = [];
+
+        if (filter === 'used') whereParts.push('is_used = 1');
+        if (filter === 'unused') whereParts.push('is_used = 0');
+
+        const keyword = String(search || '').trim();
+        if (keyword) {
+            whereParts.push('(code LIKE ? OR used_by LIKE ?)');
+            params.push(`%${keyword}%`, `%${keyword}%`);
+        }
+
+        const whereSql = whereParts.length ? (' WHERE ' + whereParts.join(' AND ')) : '';
+
+        const [countRows] = await conn.query(`SELECT COUNT(*) AS total FROM activation_codes${whereSql}`, params);
+        const total = (countRows && countRows[0] && countRows[0].total) ? Number(countRows[0].total) : 0;
+
+        const [rows] = await conn.query(
+            `SELECT ${pk} AS id, code, duration_days, is_used, used_by, create_time FROM activation_codes${whereSql} ORDER BY create_time DESC, ${pk} DESC LIMIT ? OFFSET ?`,
+            [...params, safePageSize, offset]
+        );
+
+        res.json({ success: true, codes: rows, page: safePage, pageSize: safePageSize, total });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
     finally { if (conn) conn.end(); }
+});
+
+// 4.1 作废/删除激活码
+app.post('/api/admin/codes/delete', async (req, res) => {
+    const { id, code } = req.body || {};
+    let conn;
+    try {
+        conn = await mysql.createConnection(dbConfig);
+        const pk = await getTablePrimaryKeyName(conn, 'activation_codes');
+
+        if (id !== undefined && id !== null && id !== '') {
+            await conn.query(`DELETE FROM activation_codes WHERE ${pk} = ?`, [id]);
+            return res.json({ success: true });
+        }
+
+        if (code) {
+            await conn.query('DELETE FROM activation_codes WHERE code = ?', [code]);
+            return res.json({ success: true });
+        }
+
+        return res.status(400).json({ success: false, message: '缺少 id 或 code' });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    } finally {
+        if (conn) conn.end();
+    }
 });
 
 // 5. 生成激活码
@@ -145,30 +217,68 @@ app.post('/api/admin/generate', async (req, res) => {
     finally { if (conn) conn.end(); }
 });
 
-// 6. 查看验证码记录
+// 6. 查看验证码记录（支持分页）
 app.post('/api/admin/captchas', async (req, res) => {
     let conn;
     try {
         conn = await mysql.createConnection(dbConfig);
-        const [rows] = await conn.query("SELECT email, code, create_time FROM email_code_temp ORDER BY create_time DESC LIMIT 50");
-        res.json({ success: true, logs: rows });
-    } catch (e) { res.status(500).json({ error: e.message }); }
+        const { page = 1, pageSize = 10 } = req.body || {};
+
+        const safePageSize = Math.min(Math.max(parseInt(pageSize, 10) || 10, 1), 50);
+        const safePage = Math.max(parseInt(page, 10) || 1, 1);
+        const offset = (safePage - 1) * safePageSize;
+
+        const [countRows] = await conn.query('SELECT COUNT(*) AS total FROM email_code_temp');
+        const total = (countRows && countRows[0] && countRows[0].total) ? Number(countRows[0].total) : 0;
+
+        const [rows] = await conn.query(
+            'SELECT email, code, create_time FROM email_code_temp ORDER BY create_time DESC LIMIT ? OFFSET ?',
+            [safePageSize, offset]
+        );
+
+        res.json({ success: true, logs: rows, page: safePage, pageSize: safePageSize, total });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
     finally { if (conn) conn.end(); }
 });
 
 // 7. 更新用户 (编辑)
 app.post('/api/admin/users/update', async (req, res) => {
-    const { targetId, newRole, addDays } = req.body;
+    const { targetId, newRole, addDays, vipActive } = req.body;
     let conn;
     try {
         conn = await mysql.createConnection(dbConfig);
         const pk = await getPrimaryKeyName(conn);
-        await conn.query(`UPDATE users SET role = ? WHERE ${pk} = ?`, [newRole, targetId]);
-        if (parseInt(addDays) > 0) {
-            await conn.query(`UPDATE users SET is_active = 1, vip_expire_time = DATE_ADD(IFNULL(vip_expire_time, NOW()), INTERVAL ? DAY) WHERE ${pk} = ?`, [addDays, targetId]);
+
+        // 角色
+        if (newRole) {
+            await conn.query(`UPDATE users SET role = ? WHERE ${pk} = ?`, [newRole, targetId]);
         }
+
+        // VIP 状态（0=普通，1=VIP）
+        if (vipActive !== undefined && vipActive !== null && vipActive !== '') {
+            const active = Number(vipActive) === 1 ? 1 : 0;
+            if (active === 1) {
+                await conn.query(`UPDATE users SET is_active = 1 WHERE ${pk} = ?`, [targetId]);
+            } else {
+                // 取消 VIP：同时清空到期时间
+                await conn.query(`UPDATE users SET is_active = 0, vip_expire_time = NULL WHERE ${pk} = ?`, [targetId]);
+            }
+        }
+
+        // 增加 VIP 天数：会强制激活 VIP
+        if (parseInt(addDays) > 0) {
+            await conn.query(
+                `UPDATE users SET is_active = 1, vip_expire_time = DATE_ADD(IFNULL(vip_expire_time, NOW()), INTERVAL ? DAY) WHERE ${pk} = ?`,
+                [addDays, targetId]
+            );
+        }
+
         res.json({ success: true });
-    } catch (e) { res.status(500).json({ error: e.message }); }
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
     finally { if (conn) conn.end(); }
 });
 
