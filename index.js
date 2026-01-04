@@ -282,7 +282,111 @@ app.post('/api/admin/users/update', async (req, res) => {
     finally { if (conn) conn.end(); }
 });
 
+// 8. 获取当前登录用户信息（个人中心）
+app.post('/api/user/me', async (req, res) => {
+    const { id, username } = req.body || {};
+    let conn;
+    try {
+        conn = await mysql.createConnection(dbConfig);
+        const pk = await getPrimaryKeyName(conn);
+
+        let rows;
+        if (id !== undefined && id !== null && id !== '') {
+            [rows] = await conn.query(
+                `SELECT ${pk} AS id, username, email, role, is_active, vip_expire_time, registration_date FROM users WHERE ${pk} = ? LIMIT 1`,
+                [id]
+            );
+        } else if (username) {
+            [rows] = await conn.query(
+                `SELECT ${pk} AS id, username, email, role, is_active, vip_expire_time, registration_date FROM users WHERE username = ? LIMIT 1`,
+                [username]
+            );
+        } else {
+            return res.status(400).json({ success: false, message: '缺少用户标识' });
+        }
+
+        if (!rows || rows.length === 0) {
+            return res.status(404).json({ success: false, message: '用户不存在' });
+        }
+
+        const user = rows[0];
+        // 兼容：管理员手机号固定提升权限
+        const finalRole = (user.username === '16655039535') ? 'admin' : (user.role || 'user');
+
+        return res.json({
+            success: true,
+            user: {
+                id: user.id,
+                username: user.username,
+                email: user.email,
+                role: finalRole,
+                is_active: user.is_active,
+                vip_expire_time: user.vip_expire_time,
+                registration_date: user.registration_date
+            }
+        });
+    } catch (e) {
+        return res.status(500).json({ success: false, error: e.message });
+    } finally {
+        if (conn) conn.end();
+    }
+});
+
+// 9. 修改密码（个人中心）
+app.post('/api/user/change_password', async (req, res) => {
+    const { id, username, oldPasswordHash, newPasswordHash } = req.body || {};
+    let conn;
+
+    if (!newPasswordHash) {
+        return res.status(400).json({ success: false, message: '新密码不能为空' });
+    }
+    if (!oldPasswordHash) {
+        return res.status(400).json({ success: false, message: '旧密码不能为空' });
+    }
+
+    try {
+        conn = await mysql.createConnection(dbConfig);
+        const pk = await getPrimaryKeyName(conn);
+
+        let rows;
+        if (id !== undefined && id !== null && id !== '') {
+            [rows] = await conn.query(
+                `SELECT ${pk} AS id, username, password_hash FROM users WHERE ${pk} = ? LIMIT 1`,
+                [id]
+            );
+        } else if (username) {
+            [rows] = await conn.query(
+                `SELECT ${pk} AS id, username, password_hash FROM users WHERE username = ? LIMIT 1`,
+                [username]
+            );
+        } else {
+            return res.status(400).json({ success: false, message: '缺少用户标识' });
+        }
+
+        if (!rows || rows.length === 0) {
+            return res.status(404).json({ success: false, message: '用户不存在' });
+        }
+
+        const u = rows[0];
+        if (String(u.password_hash || '') !== String(oldPasswordHash || '')) {
+            return res.status(400).json({ success: false, message: '旧密码不正确' });
+        }
+
+        await conn.query(
+            `UPDATE users SET password_hash = ? WHERE ${pk} = ?`,
+            [newPasswordHash, u.id]
+        );
+
+        return res.json({ success: true });
+    } catch (e) {
+        return res.status(500).json({ success: false, error: e.message });
+    } finally {
+        if (conn) conn.end();
+    }
+});
+
 app.listen(PORT, () => console.log(`✅ Server running on http://localhost:${PORT}`));
+
 // 确保这个接口在 index.js 中存在
 app.post('/api/activate', async (req, res) => {
     const { username, code } = req.body; // 必须是 username 和 code
