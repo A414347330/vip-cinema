@@ -1,0 +1,1165 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>超级控制台 - SVIP CINEMA</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root { --bg-body: #050505; --card-bg: rgba(20, 20, 20, 0.9); --primary: #d4af37; --gold-gradient: linear-gradient(135deg, #bf953f, #fcf6ba, #b38728, #fbf5b7, #aa771c); --text-color: #e0e0e0; --border: 1px solid rgba(212, 175, 55, 0.2); }
+        * { box-sizing: border-box; }
+        body { margin: 0; background: var(--bg-body); color: var(--text-color); font-family: 'Noto Sans SC', sans-serif; }
+        .navbar { height: 70px; background: rgba(10,10,10,0.95); border-bottom: 1px solid rgba(212, 175, 55, 0.3); display: flex; justify-content: space-between; align-items: center; padding: 0 40px; position: sticky; top: 0; z-index: 100; }
+        .brand { font-size: 1.4rem; font-weight: bold; background: var(--gold-gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .nav-right { display: flex; align-items: center; gap: 12px; }
+        .nav-btn { background: rgba(255,255,255,0.04); color: #fff; border: 1px solid rgba(212, 175, 55, 0.25); padding: 6px 14px; cursor: pointer; border-radius: 10px; font-weight: 800; transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease; }
+        .nav-btn:hover { transform: translateY(-1px); box-shadow: 0 10px 22px rgba(0,0,0,0.35); }
+        .nav-btn:active { transform: translateY(0px); opacity: 0.9; }
+        .logout-btn { background: #333; color: #fff; border: 1px solid #555; padding: 6px 14px; cursor: pointer; border-radius: 10px; font-weight: 800; transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease; }
+        .logout-btn:hover { transform: translateY(-1px); box-shadow: 0 10px 22px rgba(0,0,0,0.35); }
+        .logout-btn:active { transform: translateY(0px); opacity: 0.9; }
+        .container { max-width: 1300px; margin: 30px auto; padding: 0 20px; }
+
+        .tabs { display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 1px solid #333; }
+        .tab-btn { background: none; border: none; color: #888; padding: 12px 25px; cursor: pointer; font-size: 1rem; }
+        .tab-btn.active { color: var(--primary); border-bottom: 2px solid var(--primary); font-weight: bold; }
+        .card { background: var(--card-bg); border: var(--border); border-radius: 14px; padding: 22px; margin-bottom: 20px; box-shadow: 0 18px 60px rgba(0,0,0,0.55); }
+
+        /* 统一工具栏（标题 + 操作区） */
+        .toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.08);
+            padding: 14px;
+            border-radius: 12px;
+        }
+        .toolbar-title { font-weight: 800; color: #d8d8d8; letter-spacing: 0.4px; }
+        .toolbar-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+        .toolbar input,
+        .toolbar select { height: 40px; margin: 0; border-radius: 10px; }
+
+        /* 统一表格容器（圆角 + 边框 + 可滚动） */
+        .table-wrap {
+            border-radius: 14px;
+            overflow: auto;
+            border: 1px solid rgba(212, 175, 55, 0.18);
+            background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(0,0,0,0.22));
+            box-shadow: inset 0 0 0 1px rgba(255,255,255,0.05);
+        }
+        .data-table { width: 100%; border-collapse: separate; border-spacing: 0; min-width: 760px; }
+        .data-table thead th {
+            position: sticky;
+            top: 0;
+            z-index: 1;
+            text-align: left;
+            padding: 12px 14px;
+            font-size: 0.9rem;
+            color: rgba(212, 175, 55, 0.92);
+            background: rgba(10,10,10,0.88);
+            backdrop-filter: blur(8px);
+            border-bottom: 1px solid rgba(212, 175, 55, 0.22);
+            white-space: nowrap;
+        }
+        .data-table tbody td {
+            text-align: left;
+            padding: 12px 14px;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+            vertical-align: middle;
+            color: #e5e5e5;
+        }
+        .data-table tbody tr { transition: background 0.18s ease, transform 0.18s ease; }
+        .data-table tbody tr:nth-child(odd) { background: rgba(255,255,255,0.015); }
+        .data-table tbody tr:hover { background: rgba(212,175,55,0.06); }
+        .data-table td small { color: #9a9a9a; }
+        .cell-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+        .cell-muted { color: #9a9a9a; }
+
+        /* 用户列表：单行信息 + 合理间距 */
+        .account-cell { display: flex; align-items: center; gap: 10px; min-width: 0; }
+        .account-line { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1; }
+        .account-name { font-weight: 850; color: #f1f1f1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .account-email { color: #9a9a9a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 520px; }
+        .meta-dot { width: 4px; height: 4px; border-radius: 50%; background: rgba(212,175,55,0.45); display: inline-block; flex: 0 0 auto; }
+
+        .vip-inline { display: inline-flex; align-items: center; gap: 10px; white-space: nowrap; }
+        .vip-expire { font-size: 0.78rem; color: #9a9a9a; }
+
+        .user-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; white-space: nowrap; }
+        .btn-icon { padding: 6px 10px; border-radius: 10px; }
+
+        /* 空状态 / 加载骨架 */
+        .table-empty { text-align: center; padding: 26px 10px; color: #8a8a8a; }
+        .skeleton {
+            height: 12px;
+            border-radius: 999px;
+            background: linear-gradient(90deg, rgba(255,255,255,0.06), rgba(212,175,55,0.10), rgba(255,255,255,0.06));
+            background-size: 240% 100%;
+            animation: shimmer 1.2s ease-in-out infinite;
+        }
+        @keyframes shimmer { 0% { background-position: 0% 0; } 100% { background-position: 240% 0; } }
+
+        /* 按钮统一（含小号/描边） */
+        .btn {
+            padding: 9px 14px;
+            border-radius: 10px;
+            border: 1px solid rgba(255,255,255,0.12);
+            cursor: pointer;
+            font-weight: 800;
+            transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+            user-select: none;
+        }
+        .btn:hover { transform: translateY(-1px); box-shadow: 0 10px 22px rgba(0,0,0,0.35); }
+        .btn:active { transform: translateY(0px); opacity: 0.9; }
+        .btn-sm { padding: 6px 10px; border-radius: 10px; font-weight: 800; }
+        .btn-primary { background: var(--gold-gradient); color: #161616; border: 0; }
+        .btn-outline { background: rgba(255,255,255,0.04); color: #f1f1f1; border: 1px solid rgba(212,175,55,0.26); }
+        .btn-danger { background: linear-gradient(135deg, #8a1212, #5f0b0b); color: #fff; border: 1px solid rgba(255,107,107,0.28); }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+
+        /* 激活码生成卡片（黑金风格） */
+        .code-generator {
+            background:
+                radial-gradient(circle at 50% 0%, rgba(212, 175, 55, 0.12), transparent 60%),
+                linear-gradient(180deg, rgba(18,18,18,0.92) 0%, rgba(10,10,10,0.92) 100%);
+            border: 1px solid rgba(212, 175, 55, 0.28);
+            border-radius: 14px;
+            padding: 22px;
+            box-shadow:
+                0 0 0 1px rgba(212, 175, 55, 0.10),
+                0 16px 55px rgba(0,0,0,0.65);
+            position: relative;
+            overflow: hidden;
+        }
+        .code-generator::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--primary), transparent);
+            opacity: 0.6;
+        }
+        .code-generator__title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 0 0 6px 0;
+            font-size: 1.1rem;
+            font-weight: 800;
+            background: var(--gold-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .code-generator__desc {
+            margin: 0 0 16px 0;
+            color: #8d8d8d;
+            font-size: 0.9rem;
+        }
+        .form-label {
+            display: block;
+            margin: 12px 0 6px 0;
+            color: #b0b0b0;
+            font-size: 0.9rem;
+            letter-spacing: 0.5px;
+        }
+        .code-generator input,
+        .code-generator select {
+            margin-bottom: 0;
+            border-radius: 10px;
+            background: rgba(0,0,0,0.55);
+            border: 1px solid rgba(255,255,255,0.14);
+            transition: border-color 0.25s, box-shadow 0.25s, background 0.25s;
+        }
+        .code-generator input:focus,
+        .code-generator select:focus {
+            outline: none;
+            border-color: rgba(212, 175, 55, 0.65);
+            box-shadow: 0 0 0 4px rgba(212, 175, 55, 0.10);
+            background: rgba(0,0,0,0.78);
+        }
+        .btn-gold {
+            width: 100%;
+            margin-top: 16px;
+            height: 44px;
+            border-radius: 12px;
+            background: var(--gold-gradient);
+            background-size: 200% auto;
+            color: #1a1a1a;
+            font-weight: 900;
+            letter-spacing: 1px;
+            transition: all 0.25s ease;
+        }
+        .btn-gold:hover { background-position: right center; color: #000; }
+        .help-text {
+            margin-top: 10px;
+            color: #777;
+            font-size: 0.85rem;
+            line-height: 1.5;
+        }
+        .badge { padding: 2px 8px; border-radius: 999px; font-size: 0.78rem; display: inline-flex; align-items: center; gap: 6px; line-height: 1.4; }
+        .bg-success { background: rgba(0,255,0,0.18); color: #53ff7a; border: 1px solid rgba(83,255,122,0.25); }
+        .bg-danger { background: rgba(255,0,0,0.16); color: #ff6b6b; border: 1px solid rgba(255,107,107,0.25); }
+
+        /* 角色颜色：普通用户 / 管理员 / VIP会员（状态） */
+        .badge-role-user { background: rgba(180,180,180,0.10); color: #cfcfcf; border: 1px solid rgba(207,207,207,0.18); }
+        .badge-role-admin { background: rgba(103,58,183,0.18); color: #d3b7ff; border: 1px solid rgba(211,183,255,0.25); }
+        .badge-vip { background: rgba(212,175,55,0.16); color: #f3d27a; border: 1px solid rgba(212,175,55,0.35); }
+        .badge-normal { background: rgba(160,160,160,0.10); color: #bdbdbd; border: 1px solid rgba(189,189,189,0.18); }
+
+        .user-row { transition: background 0.2s; }
+        .user-row:hover { background: rgba(255,255,255,0.04); }
+
+        /* 分页条 */
+        .pager { display:flex; align-items:center; justify-content: space-between; gap: 12px; margin-top: 15px; padding-top: 12px; border-top: 1px solid #222; }
+        .pager-left { color:#888; font-size: 0.9rem; }
+        .pager-right { display:flex; align-items:center; gap: 10px; }
+        .pager-btn { background: #222; color: #eee; border: 1px solid #444; padding: 6px 12px; border-radius: 6px; cursor: pointer; }
+        .pager-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+        .pager-page { color: var(--primary); font-weight: 700; }
+
+        .hidden { display: none; }
+        .modal { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #1a1a1a; border: 1px solid var(--primary); padding: 30px; z-index: 1000; border-radius: 12px; width: 400px; }
+        .overlay { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index: 999; }
+        input, select { background: #000; border: 1px solid #333; color: #fff; padding: 10px; border-radius: 4px; width: 100%; margin-bottom: 15px; }
+    </style>
+</head>
+<body>
+
+<div class="navbar">
+    <div class="brand"><i class="fas fa-user-shield"></i> SVIP 全能管理后台</div>
+    <div class="nav-right">
+        <span id="adminName">管理员</span>
+        <button class="nav-btn" onclick="openProfileModal()"><i class="fas fa-user-circle"></i> 个人中心</button>
+        <button class="logout-btn" onclick="logout()">退出</button>
+    </div>
+
+</div>
+
+<div class="container">
+    <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('user-sec', event)">用户管理</button>
+        <button class="tab-btn" onclick="switchTab('code-sec', event)">激活码管理</button>
+        <button class="tab-btn" onclick="switchTab('captcha-sec', event)">验证码记录</button>
+    </div>
+
+    <!-- 1. 用户管理 -->
+    <div id="user-sec" class="tab-content card">
+        <div class="toolbar">
+            <div class="toolbar-title">用户列表</div>
+            <div class="toolbar-actions">
+                <button class="btn btn-danger" onclick="batchDeleteUsers()">批量删除</button>
+                <input type="text" id="userSearch" placeholder="搜索手机/邮箱..." style="width:240px;">
+                <button class="btn btn-primary" onclick="onUserSearch()"><i class="fas fa-search"></i> 搜索</button>
+            </div>
+        </div>
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th style="width:46px;"><input type="checkbox" onclick="toggleSelectAll('user-cb', this)"></th>
+                        <th style="width:90px;">ID</th>
+                        <th>账号信息</th>
+                        <th style="width:130px;">角色</th>
+                        <th style="width:220px;">VIP</th>
+                        <th style="width:120px;">操作</th>
+                    </tr>
+                </thead>
+                <tbody id="userTableBody"></tbody>
+            </table>
+        </div>
+
+        <!-- 分页：每页最多 10 个用户 -->
+        <div class="pager" id="userPager">
+            <div class="pager-left" id="userPagerInfo">共 0 条</div>
+            <div class="pager-right">
+                <button class="pager-btn" id="prevPageBtn" onclick="goPrevPage()">上一页</button>
+                <span class="pager-page" id="pageIndicator">第 1 / 1 页</span>
+                <button class="pager-btn" id="nextPageBtn" onclick="goNextPage()">下一页</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. 激活码管理 -->
+    <div id="code-sec" class="tab-content card hidden">
+        <div style="display: grid; grid-template-columns: 300px 1fr; gap: 20px;">
+            <div class="code-generator">
+                <h3 class="code-generator__title"><i class="fas fa-ticket-alt"></i> 生成激活码</h3>
+                <p class="code-generator__desc">一键生成黑金会员激活码，生成后会出现在右侧激活码库。</p>
+
+                <label class="form-label">选择时长</label>
+                <select id="codeDuration">
+                    <option value="1" selected>天卡 (1天)</option>
+                    <option value="7">周卡 (7天)</option>
+                    <option value="30">月卡 (30天)</option>
+                    <option value="365">年卡 (365天)</option>
+                    <option value="9999">永久卡</option>
+                </select>
+
+                <label class="form-label">生成数量</label>
+                <input type="number" id="codeCount" value="1" min="1">
+
+                <button class="btn btn-gold" onclick="generateCodes()"><i class="fas fa-bolt"></i> 立即生成</button>
+                <div class="help-text">提示：建议单次生成不超过 50 个，便于管理与追踪使用者。</div>
+            </div>
+            <div>
+                <div class="toolbar">
+                    <div class="toolbar-title">激活码库</div>
+                    <div class="toolbar-actions">
+                        <input type="text" id="codeSearch" placeholder="搜索手机号/激活码..." style="width:240px;">
+                        <button class="btn btn-primary" onclick="onCodeSearch()"><i class="fas fa-search"></i> 搜索</button>
+                        <select id="codeFilter" onchange="onCodeFilterChange()" style="width: 130px;">
+                            <option value="all">全部状态</option>
+                            <option value="unused" selected>未使用</option>
+                            <option value="used">已使用</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="table-wrap">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th style="width:260px;">激活码</th>
+                                <th style="width:120px;">时长</th>
+                                <th style="width:120px;">状态</th>
+                                <th>使用者</th>
+                                <th style="width:140px;">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="codeTableBody"></tbody>
+                    </table>
+                </div>
+
+                <!-- 分页：每页最多 10 个激活码 -->
+                <div class="pager" id="codePager">
+                    <div class="pager-left" id="codePagerInfo">共 0 条</div>
+                    <div class="pager-right">
+                        <button class="pager-btn" id="prevCodePageBtn" onclick="goPrevCodePage()">上一页</button>
+                        <span class="pager-page" id="codePageIndicator">第 1 / 1 页</span>
+                        <button class="pager-btn" id="nextCodePageBtn" onclick="goNextCodePage()">下一页</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3. 验证码记录 -->
+    <div id="captcha-sec" class="tab-content card hidden">
+        <div class="toolbar">
+            <div class="toolbar-title">验证码记录</div>
+            <div class="toolbar-actions">
+                <span class="cell-muted">仅用于排查注册/登录验证码发送情况</span>
+            </div>
+        </div>
+        <div class="table-wrap">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>邮箱</th>
+                        <th style="width:160px;">验证码</th>
+                        <th style="width:220px;">生成时间</th>
+                    </tr>
+                </thead>
+                <tbody id="captchaTableBody"></tbody>
+            </table>
+        </div>
+
+        <!-- 分页：每页最多 10 条验证码记录 -->
+        <div class="pager" id="captchaPager">
+            <div class="pager-left" id="captchaPagerInfo">共 0 条</div>
+            <div class="pager-right">
+                <button class="pager-btn" id="prevCaptchaPageBtn" onclick="goPrevCaptchaPage()">上一页</button>
+                <span class="pager-page" id="captchaPageIndicator">第 1 / 1 页</span>
+                <button class="pager-btn" id="nextCaptchaPageBtn" onclick="goNextCaptchaPage()">下一页</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 弹窗及脚本逻辑保持一致 ... -->
+<div id="profileModal" class="modal hidden">
+    <h3 style="margin-top:0; color: var(--primary);">个人中心</h3>
+
+    <div style="padding:12px 14px; border:1px solid rgba(255,255,255,0.10); border-radius: 12px; background: rgba(255,255,255,0.03); margin-bottom: 14px;">
+            <div style="display:flex; justify-content: space-between; gap: 10px; align-items: center; margin-bottom: 10px;">
+            <div style="font-weight: 900; color:#eaeaea;">账户信息</div>
+            <div id="myRoleBadge" style="display:none;"></div>
+        </div>
+
+        <div style="display:grid; grid-template-columns: 90px 1fr; row-gap: 8px; column-gap: 10px; font-size: 0.92rem;">
+            <div class="cell-muted">用户ID</div>
+            <div class="cell-mono" id="myId">-</div>
+            <div class="cell-muted">账号</div>
+            <div class="cell-mono" id="myUsername">-</div>
+            <div class="cell-muted">邮箱</div>
+            <div class="cell-mono" id="myEmail">-</div>
+            <div class="cell-muted">VIP</div>
+            <div id="myVip">-</div>
+        </div>
+    </div>
+
+    <div style="padding:12px 14px; border:1px solid rgba(255,255,255,0.10); border-radius: 12px; background: rgba(255,255,255,0.03);">
+        <div style="font-weight: 900; color:#eaeaea; margin-bottom: 10px;">修改密码</div>
+        <label class="form-label" style="margin-top:0;">旧密码</label>
+        <input type="password" id="oldPwd" placeholder="请输入旧密码" autocomplete="current-password">
+
+        <label class="form-label">新密码</label>
+        <input type="password" id="newPwd" placeholder="请输入新密码" autocomplete="new-password">
+
+        <label class="form-label">确认新密码</label>
+        <input type="password" id="newPwd2" placeholder="再次输入新密码" autocomplete="new-password">
+
+        <button class="btn btn-primary" style="width:100%;" id="btnChangePwd" onclick="changeMyPassword()">保存新密码</button>
+        <div class="help-text" style="margin-top: 10px;">提示：为保证安全，修改密码需要输入旧密码验证。</div>
+    </div>
+
+    <button class="btn" style="width:100%; background:#444; color:#fff; margin-top:12px;" onclick="closeModal()">关闭</button>
+</div>
+
+<div id="editModal" class="modal hidden">
+    <h3>编辑用户信息</h3>
+    <input type="hidden" id="editUserId">
+
+
+    <label>角色切换</label>
+    <select id="editRole">
+        <option value="user">普通用户</option>
+        <option value="admin">管理员</option>
+    </select>
+
+    <label>VIP状态</label>
+    <select id="editVipStatus">
+        <option value="0">普通用户</option>
+        <option value="1">VIP会员</option>
+    </select>
+
+    <label>增加VIP天数</label>
+    <input type="number" id="addDays" value="0">
+
+    <button class="btn btn-primary" style="width:100%;" onclick="saveUserEdit()">保存修改</button>
+    <button class="btn" style="width:100%; background:#444; color:#fff; margin-top:10px;" onclick="closeModal()">取消</button>
+</div>
+<div id="overlay" class="overlay hidden" onclick="closeModal()"></div>
+
+<script src="https://cdn.bootcdn.net/ajax/libs/blueimp-md5/2.19.0/js/md5.min.js"></script>
+<script>
+    const userSession = JSON.parse(localStorage.getItem('vip_user') || '{}');
+
+    const adminAccount = userSession.username;
+
+    // 用户分页状态（每页 10 条）
+    const userPagerState = {
+        page: 1,
+        pageSize: 10,
+        total: 0,
+        totalPages: 1,
+        loading: false
+    };
+
+    // 激活码分页状态（每页 10 条）
+    const codePagerState = {
+        page: 1,
+        pageSize: 10,
+        total: 0,
+        totalPages: 1,
+        loading: false
+    };
+
+    // 验证码记录分页状态（每页 10 条）
+    const captchaPagerState = {
+        page: 1,
+        pageSize: 10,
+        total: 0,
+        totalPages: 1,
+        loading: false
+    };
+
+    function maskAdminName(name) {
+        const str = String(name ?? '');
+        // 11 位手机号：166****9535
+        if (/^\d{11}$/.test(str)) {
+            return str.replace(/^(\d{3})\d{4}(\d{4})$/, '$1****$2');
+        }
+        return str;
+    }
+
+    if (!adminAccount || userSession.role !== 'admin') {
+        window.location.href = 'login.html';
+    }
+    document.getElementById('adminName').innerText = maskAdminName(adminAccount);
+
+    function switchTab(id, e) {
+        document.querySelectorAll('.tab-content').forEach(t => t.classList.add('hidden'));
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById(id).classList.remove('hidden');
+        if (e && e.target) e.target.classList.add('active');
+        if(id === 'user-sec') loadUsers({ resetPage: false });
+        if(id === 'code-sec') loadCodes({ resetPage: false });
+        if(id === 'captcha-sec') loadCaptchas({ resetPage: false });
+    }
+
+    function roleBadge(role) {
+        const r = (role || 'user').toLowerCase();
+        if (r === 'admin') return '<span class="badge badge-role-admin"><i class="fas fa-user-shield"></i> 管理员</span>';
+        return '<span class="badge badge-role-user"><i class="fas fa-user"></i> 普通用户</span>';
+    }
+
+    function getVipDaysLeft(expireTime) {
+        if (!expireTime) return null;
+        try {
+            const d = new Date(expireTime);
+            if (Number.isNaN(d.getTime())) return null;
+            const ms = d.getTime() - Date.now();
+            return Math.floor(ms / 86400000);
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function isPermanentVip(expireTime) {
+        const daysLeft = getVipDaysLeft(expireTime);
+        return daysLeft !== null && daysLeft > 388;
+    }
+
+    function vipBadge(isActive, expireTime) {
+        if (Number(isActive) === 1) {
+            const permanent = isPermanentVip(expireTime);
+            return permanent
+                ? '<span class="badge badge-vip"><i class="fas fa-crown"></i> 永久VIP会员已激活</span>'
+                : '<span class="badge badge-vip"><i class="fas fa-crown"></i> VIP会员已激活</span>';
+        }
+        return '<span class="badge badge-normal"><i class="fas fa-circle"></i> 未激活</span>';
+    }
+
+
+    function renderTableEmpty(tbody, colSpan, text) {
+        tbody.innerHTML = `<tr><td colspan="${colSpan}" class="table-empty"><i class="fas fa-inbox"></i> ${text}</td></tr>`;
+    }
+
+    function renderTableLoading(tbody, colSpan, rows = 6) {
+        const lines = [];
+        for (let i = 0; i < rows; i++) {
+            const w = 65 + Math.round(Math.random() * 30);
+            lines.push(`<tr><td colspan="${colSpan}"><div class="skeleton" style="width:${w}%;"></div></td></tr>`);
+        }
+        tbody.innerHTML = lines.join('');
+    }
+
+    async function copyToClipboard(text) {
+        const val = String(text ?? '');
+        if (!val) return false;
+
+        // 优先使用 Clipboard API
+        if (navigator.clipboard && window.isSecureContext) {
+            await navigator.clipboard.writeText(val);
+            return true;
+        }
+
+        // 兼容降级：隐藏 textarea + execCommand
+        const ta = document.createElement('textarea');
+        ta.value = val;
+        ta.setAttribute('readonly', '');
+        ta.style.position = 'fixed';
+        ta.style.top = '-1000px';
+        ta.style.left = '-1000px';
+        document.body.appendChild(ta);
+        ta.select();
+        ta.setSelectionRange(0, ta.value.length);
+        const ok = document.execCommand('copy');
+        document.body.removeChild(ta);
+        return ok;
+    }
+
+    async function copyActivationCode(code, btn) {
+        try {
+            await copyToClipboard(code);
+            if (btn) {
+                const old = btn.innerHTML;
+                btn.innerHTML = '<i class="fas fa-check"></i> 已复制';
+                btn.disabled = true;
+                setTimeout(() => {
+                    btn.innerHTML = old;
+                    btn.disabled = false;
+                }, 900);
+            }
+        } catch (e) {
+            alert('复制失败，请手动复制');
+        }
+    }
+
+    function formatDateTimeLikeAdmin(time) {
+        if (!time) return '-';
+        try {
+            const d = new Date(time);
+            if (Number.isNaN(d.getTime())) return String(time);
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${y}-${m}-${day}`;
+        } catch (e) {
+            return String(time);
+        }
+    }
+
+    async function copyUserAccount(value, btn) {
+        try {
+            await copyToClipboard(value);
+            if (btn) {
+                const old = btn.innerHTML;
+                btn.innerHTML = '<i class="fas fa-check"></i>'; 
+                btn.disabled = true;
+                setTimeout(() => {
+                    btn.innerHTML = old;
+                    btn.disabled = false;
+                }, 900);
+            }
+        } catch (e) {
+            alert('复制失败，请手动复制');
+        }
+    }
+
+    function updateUserPagerUI() {
+        const info = document.getElementById('userPagerInfo');
+        const pageIndicator = document.getElementById('pageIndicator');
+        const prevBtn = document.getElementById('prevPageBtn');
+        const nextBtn = document.getElementById('nextPageBtn');
+
+        info.innerText = `共 ${userPagerState.total} 条 · 每页 ${userPagerState.pageSize} 条`;
+        pageIndicator.innerText = `第 ${userPagerState.page} / ${userPagerState.totalPages} 页`;
+
+        prevBtn.disabled = userPagerState.loading || userPagerState.page <= 1;
+        nextBtn.disabled = userPagerState.loading || userPagerState.page >= userPagerState.totalPages;
+    }
+
+    async function renderUsersProgressively(users) {
+        const tbody = document.getElementById('userTableBody');
+        tbody.innerHTML = '';
+
+        const list = Array.isArray(users) ? users : [];
+        if (list.length === 0) {
+            renderTableEmpty(tbody, 6, '暂无用户数据');
+            return;
+        }
+
+        for (const u of list) {
+            const tr = document.createElement('tr');
+            tr.className = 'user-row';
+
+            const rawExpire = (u.vip_expire_time || u.expire_time || u.vipExpireTime || '');
+            const permanent = Number(u.is_active) === 1 && isPermanentVip(rawExpire);
+            const expireText = Number(u.is_active) === 1
+                ? (permanent ? '永久' : `到期：${formatDateTimeLikeAdmin(rawExpire)}`)
+                : '未激活';
+
+            tr.innerHTML = `
+                <td><input type="checkbox" class="user-cb" value="${u.id}"></td>
+                <td class="cell-mono">${u.id}</td>
+                <td>
+                    <div class="account-cell">
+                        <div class="account-line">
+                            <span class="account-name">${u.username}</span>
+                            <span class="meta-dot"></span>
+                            <span class="account-email cell-mono">${u.email || '-'}</span>
+                        </div>
+                        <button class="btn btn-outline btn-sm btn-icon" title="复制账号" onclick='copyUserAccount(${JSON.stringify(u.username)}, this)'>
+                            <i class="fas fa-copy"></i>
+                        </button>
+                    </div>
+                </td>
+                <td>${roleBadge(u.role)}</td>
+                <td>
+                    <div class="vip-inline">
+                        ${vipBadge(u.is_active, rawExpire)}
+                        <span class="vip-expire">${expireText}</span>
+                    </div>
+                </td>
+                <td>
+                    <div class="user-actions">
+                        <button class="btn btn-outline btn-sm btn-icon" title="编辑" onclick='openEditModal(${JSON.stringify(u)})'><i class="fas fa-pen"></i></button>
+                        <button class="btn btn-danger btn-sm btn-icon" title="删除" onclick="deleteUser(${u.id})"><i class="fas fa-trash"></i></button>
+                    </div>
+                </td>
+            `;
+            tbody.appendChild(tr);
+            // 逐条加载效果：轻微延迟
+            await new Promise(r => setTimeout(r, 35));
+        }
+    }
+
+    async function loadUsers({ resetPage } = {}) {
+        if (userPagerState.loading) return;
+        const search = document.getElementById('userSearch').value;
+        if (resetPage) userPagerState.page = 1;
+
+        userPagerState.loading = true;
+        updateUserPagerUI();
+        renderTableLoading(document.getElementById('userTableBody'), 6, 6);
+
+        try {
+            const res = await fetch('/api/admin/users', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    adminUser: adminAccount,
+                    search,
+                    page: userPagerState.page,
+                    pageSize: userPagerState.pageSize
+                })
+            });
+            const data = await res.json();
+
+            if(data.success) {
+                userPagerState.total = Number(data.total || 0);
+                userPagerState.page = Number(data.page || userPagerState.page);
+                userPagerState.pageSize = Number(data.pageSize || userPagerState.pageSize);
+                userPagerState.totalPages = Math.max(1, Math.ceil(userPagerState.total / userPagerState.pageSize));
+
+                updateUserPagerUI();
+                await renderUsersProgressively(data.users || []);
+            } else {
+                renderTableEmpty(document.getElementById('userTableBody'), 6, '加载失败，请稍后重试');
+            }
+        } catch (e) {
+            renderTableEmpty(document.getElementById('userTableBody'), 6, '网络异常，请检查服务是否启动');
+        } finally {
+            userPagerState.loading = false;
+            updateUserPagerUI();
+        }
+    }
+
+    function goPrevPage() {
+        if (userPagerState.page <= 1) return;
+        userPagerState.page -= 1;
+        loadUsers({ resetPage: false });
+    }
+
+    function goNextPage() {
+        if (userPagerState.page >= userPagerState.totalPages) return;
+        userPagerState.page += 1;
+        loadUsers({ resetPage: false });
+    }
+
+    // 搜索：重置到第一页再加载
+    function onUserSearch() {
+        loadUsers({ resetPage: true });
+    }
+
+    document.getElementById('userSearch').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') onUserSearch();
+    });
+
+    function updateCodePagerUI() {
+        const info = document.getElementById('codePagerInfo');
+        const pageIndicator = document.getElementById('codePageIndicator');
+        const prevBtn = document.getElementById('prevCodePageBtn');
+        const nextBtn = document.getElementById('nextCodePageBtn');
+
+        info.innerText = `共 ${codePagerState.total} 条 · 每页 ${codePagerState.pageSize} 条`;
+        pageIndicator.innerText = `第 ${codePagerState.page} / ${codePagerState.totalPages} 页`;
+
+        prevBtn.disabled = codePagerState.loading || codePagerState.page <= 1;
+        nextBtn.disabled = codePagerState.loading || codePagerState.page >= codePagerState.totalPages;
+    }
+
+    async function renderCodesProgressively(codes) {
+        const tbody = document.getElementById('codeTableBody');
+        tbody.innerHTML = '';
+
+        const list = Array.isArray(codes) ? codes : [];
+        if (list.length === 0) {
+            renderTableEmpty(tbody, 5, '暂无激活码数据');
+            return;
+        }
+
+        for (const c of list) {
+            const tr = document.createElement('tr');
+            tr.className = 'user-row';
+            const usedByText = c.used_by || '';
+            const usedBadge = c.is_used
+                ? '<span class="badge bg-danger"><i class="fas fa-lock"></i> 已使用</span>'
+                : '<span class="badge bg-success"><i class="fas fa-check"></i> 未使用</span>';
+
+            const usedLine = c.is_used
+                ? `<div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">${usedBadge}<span class="cell-mono" style="color:#e9e9e9;">${usedByText}</span></div>`
+                : `${usedBadge}`;
+
+            tr.innerHTML = `
+                <td>
+                    <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+                        <span class="cell-mono">${c.code}</span>
+                        <button class="btn btn-outline btn-sm" onclick='copyActivationCode(${JSON.stringify(c.code)}, this)'><i class="fas fa-copy"></i> 复制</button>
+                    </div>
+                </td>
+                <td><span class="badge badge-vip"><i class="fas fa-clock"></i> ${c.duration_days} 天</span></td>
+                <td><span class="badge ${c.is_used ? 'bg-danger' : 'bg-success'}"><i class="fas ${c.is_used ? 'fa-lock' : 'fa-check'}"></i> ${c.is_used ? '已使用' : '有效'}</span></td>
+                <td>${usedLine}</td>
+                <td>
+                    <button class="btn btn-danger btn-sm" onclick="deleteCode(${c.id == null ? 'null' : c.id}, '${c.code}')"><i class="fas fa-ban"></i> 作废</button>
+                </td>
+            `;
+
+
+            tbody.appendChild(tr);
+            await new Promise(r => setTimeout(r, 30));
+        }
+    }
+
+    async function loadCodes({ resetPage } = {}) {
+        if (codePagerState.loading) return;
+
+        const filter = document.getElementById('codeFilter').value;
+        const search = document.getElementById('codeSearch').value.trim();
+        if (resetPage) codePagerState.page = 1;
+
+        codePagerState.loading = true;
+        updateCodePagerUI();
+        renderTableLoading(document.getElementById('codeTableBody'), 5, 6);
+
+        try {
+            const res = await fetch('/api/admin/codes/list', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    adminUser: adminAccount,
+                    filter,
+                    search,
+                    page: codePagerState.page,
+                    pageSize: codePagerState.pageSize
+                })
+            });
+            const data = await res.json();
+
+            if(data.success) {
+                codePagerState.total = Number(data.total || 0);
+                codePagerState.page = Number(data.page || codePagerState.page);
+                codePagerState.pageSize = Number(data.pageSize || codePagerState.pageSize);
+                codePagerState.totalPages = Math.max(1, Math.ceil(codePagerState.total / codePagerState.pageSize));
+
+                // 防止删除后出现“空页”
+                if (codePagerState.page > codePagerState.totalPages) {
+                    codePagerState.page = codePagerState.totalPages;
+                    codePagerState.loading = false;
+                    updateCodePagerUI();
+                    return loadCodes({ resetPage: false });
+                }
+
+                updateCodePagerUI();
+                await renderCodesProgressively(data.codes || []);
+            } else {
+                renderTableEmpty(document.getElementById('codeTableBody'), 5, '加载失败，请稍后重试');
+            }
+        } catch (e) {
+            renderTableEmpty(document.getElementById('codeTableBody'), 5, '网络异常，请检查服务是否启动');
+        } finally {
+            codePagerState.loading = false;
+            updateCodePagerUI();
+        }
+    }
+
+    function goPrevCodePage() {
+        if (codePagerState.page <= 1) return;
+        codePagerState.page -= 1;
+        loadCodes({ resetPage: false });
+    }
+
+    function goNextCodePage() {
+        if (codePagerState.page >= codePagerState.totalPages) return;
+        codePagerState.page += 1;
+        loadCodes({ resetPage: false });
+    }
+
+    function onCodeFilterChange() {
+        loadCodes({ resetPage: true });
+    }
+
+    function onCodeSearch() {
+        loadCodes({ resetPage: true });
+    }
+
+    function updateCaptchaPagerUI() {
+        const info = document.getElementById('captchaPagerInfo');
+        const pageIndicator = document.getElementById('captchaPageIndicator');
+        const prevBtn = document.getElementById('prevCaptchaPageBtn');
+        const nextBtn = document.getElementById('nextCaptchaPageBtn');
+
+        info.innerText = `共 ${captchaPagerState.total} 条 · 每页 ${captchaPagerState.pageSize} 条`;
+        pageIndicator.innerText = `第 ${captchaPagerState.page} / ${captchaPagerState.totalPages} 页`;
+
+        prevBtn.disabled = captchaPagerState.loading || captchaPagerState.page <= 1;
+        nextBtn.disabled = captchaPagerState.loading || captchaPagerState.page >= captchaPagerState.totalPages;
+    }
+
+    async function renderCaptchasProgressively(logs) {
+        const tbody = document.getElementById('captchaTableBody');
+        tbody.innerHTML = '';
+
+        const list = Array.isArray(logs) ? logs : [];
+        if (list.length === 0) {
+            renderTableEmpty(tbody, 3, '暂无验证码记录');
+            return;
+        }
+
+        for (const log of list) {
+            const tr = document.createElement('tr');
+            tr.className = 'user-row';
+            tr.innerHTML = `
+                <td class="cell-mono">${log.email}</td>
+                <td class="cell-mono" style="color:var(--primary); font-weight:900; letter-spacing:1px;">${log.code}</td>
+                <td>${new Date(log.create_time).toLocaleString()}</td>
+            `;
+            tbody.appendChild(tr);
+            await new Promise(r => setTimeout(r, 30));
+        }
+    }
+
+    async function loadCaptchas({ resetPage } = {}) {
+        if (captchaPagerState.loading) return;
+        if (resetPage) captchaPagerState.page = 1;
+
+        captchaPagerState.loading = true;
+        updateCaptchaPagerUI();
+        renderTableLoading(document.getElementById('captchaTableBody'), 3, 6);
+
+        try {
+            const res = await fetch('/api/admin/captchas', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    adminUser: adminAccount,
+                    page: captchaPagerState.page,
+                    pageSize: captchaPagerState.pageSize
+                })
+            });
+            const data = await res.json();
+
+            if(data.success) {
+                captchaPagerState.total = Number(data.total || 0);
+                captchaPagerState.page = Number(data.page || captchaPagerState.page);
+                captchaPagerState.pageSize = Number(data.pageSize || captchaPagerState.pageSize);
+                captchaPagerState.totalPages = Math.max(1, Math.ceil(captchaPagerState.total / captchaPagerState.pageSize));
+
+                updateCaptchaPagerUI();
+                await renderCaptchasProgressively(data.logs || []);
+            } else {
+                renderTableEmpty(document.getElementById('captchaTableBody'), 3, '加载失败，请稍后重试');
+            }
+        } catch (e) {
+            renderTableEmpty(document.getElementById('captchaTableBody'), 3, '网络异常，请检查服务是否启动');
+        } finally {
+            captchaPagerState.loading = false;
+            updateCaptchaPagerUI();
+        }
+    }
+
+    function goPrevCaptchaPage() {
+        if (captchaPagerState.page <= 1) return;
+        captchaPagerState.page -= 1;
+        loadCaptchas({ resetPage: false });
+    }
+
+    function goNextCaptchaPage() {
+        if (captchaPagerState.page >= captchaPagerState.totalPages) return;
+        captchaPagerState.page += 1;
+        loadCaptchas({ resetPage: false });
+    }
+
+    async function generateCodes() {
+        const count = document.getElementById('codeCount').value;
+        const duration = document.getElementById('codeDuration').value;
+        await fetch('/api/admin/generate', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ adminUser: adminAccount, count, duration })
+        });
+        alert('激活码生成成功');
+        loadCodes({ resetPage: true });
+    }
+
+    async function deleteUser(id) {
+        if(!confirm('确定要删除该用户吗？')) return;
+        await fetch('/api/admin/delete_user', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ adminUser: adminAccount, targetId: id })
+        });
+        loadUsers({ resetPage: false });
+    }
+
+    async function deleteCode(id, code) {
+        if(!confirm('确定作废此激活码？')) return;
+        await fetch('/api/admin/codes/delete', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ adminUser: adminAccount, id, code })
+        });
+        loadCodes({ resetPage: false });
+    }
+
+    async function openProfileModal() {
+        document.getElementById('profileModal').classList.remove('hidden');
+        document.getElementById('overlay').classList.remove('hidden');
+        await loadMyProfile();
+        const oldPwd = document.getElementById('oldPwd');
+        if (oldPwd) oldPwd.focus();
+    }
+
+    async function loadMyProfile() {
+        const setText = (id, val) => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.textContent = (val === undefined || val === null || val === '') ? '-' : String(val);
+        };
+
+        setText('myId', '加载中...');
+        setText('myUsername', '加载中...');
+        setText('myEmail', '加载中...');
+        const vipEl = document.getElementById('myVip');
+        if (vipEl) vipEl.innerHTML = '<span class="cell-muted">加载中...</span>';
+
+        const roleBox = document.getElementById('myRoleBadge');
+        if (roleBox) { roleBox.style.display = 'none'; roleBox.innerHTML = ''; }
+
+        try {
+            const res = await fetch('/api/user/me', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: userSession.id, username: userSession.username })
+            });
+            const data = await res.json();
+            if (!data || !data.success) {
+                setText('myId', userSession.id || '-');
+                setText('myUsername', userSession.username || '-');
+                setText('myEmail', '-');
+                if (vipEl) vipEl.innerHTML = vipBadge(userSession.is_active, userSession.vip_expire_time || userSession.expire_time || userSession.vipExpireTime);
+                return;
+            }
+
+            const u = data.user || {};
+            setText('myId', u.id);
+            setText('myUsername', u.username);
+            setText('myEmail', u.email || '-');
+
+            if (vipEl) {
+                const rawExpire = (u.vip_expire_time || '');
+                const permanent = Number(u.is_active) === 1 && isPermanentVip(rawExpire);
+                const expireText = Number(u.is_active) === 1
+                    ? (permanent ? '永久' : `到期：${formatDateTimeLikeAdmin(rawExpire)}`)
+                    : '未激活';
+                vipEl.innerHTML = `<div class="vip-inline">${vipBadge(u.is_active, rawExpire)}<span class="vip-expire">${expireText}</span></div>`;
+            }
+
+            if (roleBox) {
+                roleBox.style.display = 'inline-block';
+                roleBox.innerHTML = roleBadge(u.role);
+            }
+        } catch (e) {
+            setText('myId', userSession.id || '-');
+            setText('myUsername', userSession.username || '-');
+            setText('myEmail', '-');
+            if (vipEl) vipEl.innerHTML = vipBadge(userSession.is_active);
+        }
+    }
+
+    async function changeMyPassword() {
+        const oldPwd = document.getElementById('oldPwd').value;
+        const newPwd = document.getElementById('newPwd').value;
+        const newPwd2 = document.getElementById('newPwd2').value;
+        const btn = document.getElementById('btnChangePwd');
+
+        if (!oldPwd || !newPwd || !newPwd2) {
+            alert('请填写完整的密码信息');
+            return;
+        }
+        if (newPwd !== newPwd2) {
+            alert('两次输入的新密码不一致');
+            return;
+        }
+        if (newPwd.length < 6) {
+            alert('新密码长度至少 6 位');
+            return;
+        }
+
+        if (btn) btn.disabled = true;
+        try {
+            const res = await fetch('/api/user/change_password', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    id: userSession.id,
+                    username: userSession.username,
+                    oldPasswordHash: md5(oldPwd),
+                    newPasswordHash: md5(newPwd)
+                })
+            });
+            const data = await res.json();
+            if (data && data.success) {
+                alert('密码修改成功，请重新登录');
+                logout();
+            } else {
+                alert((data && data.message) || '修改失败，请检查旧密码');
+            }
+        } catch (e) {
+            alert('网络异常，请稍后重试');
+        } finally {
+            if (btn) btn.disabled = false;
+        }
+    }
+
+    function openEditModal(u) {
+        document.getElementById('editUserId').value = u.id;
+        document.getElementById('editRole').value = u.role;
+        document.getElementById('editVipStatus').value = String(Number(u.is_active) === 1 ? 1 : 0);
+        document.getElementById('addDays').value = 0;
+        document.getElementById('editModal').classList.remove('hidden');
+        document.getElementById('overlay').classList.remove('hidden');
+    }
+    function closeModal() {
+        const edit = document.getElementById('editModal');
+        const profile = document.getElementById('profileModal');
+        if (edit) edit.classList.add('hidden');
+        if (profile) profile.classList.add('hidden');
+        document.getElementById('overlay').classList.add('hidden');
+
+        // 清空密码输入，避免残留
+        const ids = ['oldPwd', 'newPwd', 'newPwd2'];
+        ids.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.value = '';
+        });
+    }
+
+
+    async function saveUserEdit() {
+        const payload = {
+            adminUser: adminAccount,
+            targetId: document.getElementById('editUserId').value,
+            newRole: document.getElementById('editRole').value,
+            vipActive: document.getElementById('editVipStatus').value,
+            addDays: document.getElementById('addDays').value
+        };
+        await fetch('/api/admin/users/update', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        });
+        closeModal();
+        loadUsers({ resetPage: false });
+    }
+
+    function toggleSelectAll(className, master) {
+        document.querySelectorAll('.' + className).forEach(cb => cb.checked = master.checked);
+    }
+
+    function logout() { localStorage.removeItem('vip_user'); window.location.href = 'login.html'; }
+
+    document.getElementById('codeSearch').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') onCodeSearch();
+    });
+
+    window.onload = () => loadUsers({ resetPage: true });
+</script>
+</body>
+</html>
