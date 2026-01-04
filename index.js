@@ -5,11 +5,31 @@ const cors = require('cors');
 const bodyParser = require('body-parser');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+
+// Zeabur / PaaS 通常会注入 PORT；另外保留 ZEABUR_PORT 兜底
+const PORT = Number(process.env.PORT || process.env.ZEABUR_PORT || 3000);
+// 显式绑定到 0.0.0.0，避免某些容器环境只绑定 localhost 导致外部无法访问
+const HOST = process.env.HOST || '0.0.0.0';
+
+// 记录未捕获异常，方便在 Zeabur 日志里直接定位崩溃原因
+process.on('unhandledRejection', (reason) => {
+    console.error('❌ UnhandledRejection:', reason);
+});
+process.on('uncaughtException', (err) => {
+    console.error('❌ UncaughtException:', err);
+    // 让平台接管重启（Zeabur 会自动拉起）
+    process.exit(1);
+});
 
 app.use(cors());
 app.use(bodyParser.json());
 app.use(express.static(path.join(__dirname, 'public')));
+
+// 健康检查：用于 Zeabur 探活/你自己访问排查
+app.get('/health', (req, res) => {
+    res.json({ ok: true, time: new Date().toISOString(), port: PORT, node: process.version });
+});
+
 
 const dbConfig = {
     host: 'mysql6.sqlpub.com',
@@ -456,7 +476,10 @@ app.post('/api/user/change_password', async (req, res) => {
     }
 });
 
-app.listen(PORT, () => console.log(`✅ Server running on http://localhost:${PORT}`));
+app.listen(PORT, HOST, () => {
+    console.log(`✅ Server listening on ${HOST}:${PORT}`);
+    console.log(`✅ Health check: /health`);
+});
 
 // 确保这个接口在 index.js 中存在
 app.post('/api/activate', async (req, res) => {
