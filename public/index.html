@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <script>
+        // ================= 核心权限控制逻辑 =================
+        let currentUser = null;
+
+        // 1. 页面加载时检查登录和激活状态
+        // 用户名展示脱敏：如果是手机号，隐藏中间 4 位
+        function maskUsername(username) {
+            const str = String(username ?? '');
+            // 11 位纯数字手机号：138****5678
+            if (/^\d{11}$/.test(str)) {
+                return str.replace(/^(\d{3})\d{4}(\d{4})$/, '$1****$2');
+            }
+            return str;
+        }
+
+        function applyAutoRotateLayout() {
+            const needRotate = window.innerWidth < window.innerHeight;
+            document.body.classList.toggle('force-landscape', needRotate);
+        }
+
+        function initPasteMenu() {
+            /* --- 极简粘贴系统 --- */
+            const customMenu = document.getElementById('customMenu');
+            const urlInput = document.getElementById('url');
+            const menuPaste = document.getElementById('menuPaste');
+            if (!customMenu || !urlInput || !menuPaste) return;
+
+            document.addEventListener('contextmenu', function(e) {
+                // 如果未激活，禁止右键粘贴
+                if (!currentUser || Number(currentUser.is_active) !== 1) return;
+
+                e.preventDefault(); 
+                if (e.target === urlInput) {
+                    let x = e.pageX;
+                    let y = e.pageY;
+                    if (y + 50 > window.innerHeight) y = window.innerHeight - 50;
+                    customMenu.style.left = x + 'px';
+                    customMenu.style.top = y + 'px';
+                    customMenu.style.display = 'block';
+                } else {
+                    customMenu.style.display = 'none';
+                }
+            });
+
+            document.addEventListener('click', function() {
+                customMenu.style.display = 'none';
+            });
+
+            menuPaste.addEventListener('click', async function() {
+                urlInput.focus(); 
+                try {
+                    const text = await navigator.clipboard.readText();
+                    urlInput.value = text;
+                    urlInput.style.backgroundColor = '#222';
+                    setTimeout(() => urlInput.style.backgroundColor = '', 100);
+                } catch (err) {
+                    alert('请按 Ctrl+V 进行粘贴');
+                }
+                customMenu.style.display = 'none';
+            });
+        }
+
+        function getVipDaysLeft(expireTime) {
+            if (!expireTime) return null;
+            try {
+                const d = new Date(expireTime);
+                if (Number.isNaN(d.getTime())) return null;
+                const ms = d.getTime() - Date.now();
+                return Math.floor(ms / 86400000);
+            } catch (e) {
+                return null;
+            }
+        }
+
+        function isPermanentVip(expireTime) {
+            const daysLeft = getVipDaysLeft(expireTime);
+            return daysLeft !== null && daysLeft > 388;
+        }
+
+        async function refreshCurrentUserFromServer() {
+            if (!currentUser) return;
+            try {
+                const res = await fetch('/api/user/me', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: currentUser.id, username: currentUser.username })
+                });
+                const data = await res.json();
+                if (data && data.success && data.user) {
+                    currentUser = { ...currentUser, ...data.user };
+                    localStorage.setItem('vip_user', JSON.stringify(currentUser));
+                }
+            } catch (e) {
+                // 忽略刷新失败，继续用本地缓存
+            }
+        }
+
+        window.addEventListener('DOMContentLoaded', async () => {
+            applyAutoRotateLayout();
+            window.addEventListener('resize', applyAutoRotateLayout);
+            window.addEventListener('orientationchange', applyAutoRotateLayout);
+
+            const userStr = localStorage.getItem('vip_user');
+            
+            // 如果没登录，直接跳去登录页
+            if (!userStr) {
+                window.location.href = 'login.html'; 
+                return;
+            }
+
+            currentUser = JSON.parse(userStr);
+
+            // 从后端拉取一次最新用户信息（含 vip_expire_time），确保展示准确
+            await refreshCurrentUserFromServer();
+
+            document.getElementById('displayUsername').innerText = maskUsername(currentUser.username);
+            updateVipHeaderStatus();
+            initPasteMenu();
+
+            // 检查激活状态
+            checkActivationStatus();
+        });
+
+        function updateVipHeaderStatus() {
+            const el = document.getElementById('vipStatusBadge');
+            if (!el) return;
+
+            const active = !!(currentUser && Number(currentUser.is_active) === 1);
+            el.className = 'vip-state-badge ' + (active ? 'active' : 'inactive');
+
+            if (!active) {
+                el.innerHTML = '<i class="fas fa-lock"></i> VIP 未激活';
+                return;
+            }
+
+            const permanent = isPermanentVip(currentUser.vip_expire_time || currentUser.expire_time || currentUser.vipExpireTime);
+            el.innerHTML = permanent
+                ? '<i class="fas fa-crown"></i> 永久VIP会员已激活'
+                : '<i class="fas fa-crown"></i> VIP会员已激活';
+        }
+
+
+        function checkActivationStatus() {
+            updateVipHeaderStatus();
+
+            // 如果本地状态显示未激活，弹出激活框
+            if (Number(currentUser.is_active) !== 1) {
+                document.getElementById('activateModal').style.display = 'flex';
+                // 禁用解析输入框和按钮
+                document.getElementById('url').disabled = true;
+                document.getElementById('playBtn').disabled = true;
+                document.getElementById('url').placeholder = "请先完成激活...";
+            } else {
+                // 已激活，确保隐藏弹窗
+                document.getElementById('activateModal').style.display = 'none';
+            }
+        }
+
+        // 2. 提交激活码
+        async function submitActivation() {
+            const code = document.getElementById('activationCode').value.trim();
+            if (!code) {
+                alert("请输入激活码");
+                return;
+            }
+
+            const btn = document.querySelector('.activate-btn');
+            btn.innerHTML = "验证中...";
+            btn.disabled = true;
+
+            try {
+                // 调用之前的 Node.js 后端接口
+                const res = await fetch('/api/activate', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ username: currentUser.username, code: code })
+                });
+                const data = await res.json();
+
+                if (data.success) {
+                    alert('🎉 激活成功！欢迎尊贵的会员。');
+                    // 更新本地存储状态
+                    currentUser.is_active = 1;
+                    localStorage.setItem('vip_user', JSON.stringify(currentUser));
+                    // 刷新页面以解锁
+                    location.reload();
+                } else {
+                    alert(data.message || '激活失败，请检查激活码');
+                    btn.innerHTML = "立即激活";
+                    btn.disabled = false;
+                }
+            } catch (err) {
+                console.error(err);
+                alert('网络连接错误，请稍后重试');
+                btn.innerHTML = "立即激活";
+                btn.disabled = false;
+            }
+        }
+
+        // 3. 退出登录
+        function logout() {
+            localStorage.removeItem('vip_user');
+            // 跳回登录页，如果是跳回注册页请改为 register.html
+            window.location.href = 'login.html';
+        }
+
+        // ================= 播放器逻辑 =================
+        function play() {
+            // 双重保险：再次检查激活状态
+            if (!currentUser || Number(currentUser.is_active) !== 1) {
+                alert("请先激活会员！");
+                return;
+            }
+
+            const urlInput = document.getElementById('url');
+            const videoUrl = urlInput.value.trim();
+            const apiSelect = document.getElementById('jk');
+            
+            if (!videoUrl) {
+                urlInput.style.borderColor = '#ff3333';
+                setTimeout(() => urlInput.style.borderColor = '#333', 1500);
+                return;
+            }
+            
+            const loading = document.getElementById('loading');
+            loading.style.display = 'flex';
+            
+            setTimeout(() => {
+                const placeholder = document.getElementById('videoPlaceholder');
+                const videoPlayer = document.getElementById('videoPlayer');
+                const timestamp = new Date().getTime();
+                const finalUrl = apiSelect.value + videoUrl + "&_t=" + timestamp;
+                
+                placeholder.style.display = 'none';
+                videoPlayer.src = finalUrl;
+                videoPlayer.style.display = 'block';
+                loading.style.display = 'none';
+            }, 800);
+        }
+
+        document.getElementById('url').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') play();
+        });
+        
+        // 只有激活用户才自动聚焦
+        window.onload = function() {
+            if (currentUser && Number(currentUser.is_active) === 1) {
+                setTimeout(() => document.getElementById('url').focus(), 500);
+            }
+        }
+
+        //（右键粘贴系统已迁移到 DOMContentLoaded 内部初始化，避免元素尚未渲染导致报错）
+
+        document.addEventListener('keydown', function(e) {
+            if(e.key === 'F12' || 
+               (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'C')) || 
+               (e.ctrlKey && (e.key === 'U' || e.key === 'S'))) {
+                e.preventDefault();
+                return false;
+            }
+        });
+    </script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<!-- 强效防缓存 -->
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+
+<title>尊享VIP视频解析 - 黑金至尊版</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@500;700&family=Noto+Sans+SC:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+    /* --- 核心变量 --- */
+    :root {
+        --bg-body: #050505;
+        --bg-card: #111111;
+        --primary: #d4af37;
+        /* 统一的黑金渐变色 */
+        --gold-gradient: linear-gradient(135deg, #bf953f, #fcf6ba, #b38728, #fbf5b7, #aa771c);
+        --bar-height: 90px;
+    }
+
+    ::-webkit-scrollbar { width: 0; height: 0; background: transparent; }
+    html, body { scrollbar-width: none; -ms-overflow-style: none; }
+
+    /* 全局禁止选中，除输入框外 */
+    body {
+        -webkit-user-select: none;
+        -moz-user-select: none;
+        -ms-user-select: none;
+        user-select: none;
+        font-family: 'Noto Sans SC', sans-serif;
+        background-color: var(--bg-body);
+        background-image: 
+            radial-gradient(circle at 50% 0%, rgba(212, 175, 55, 0.15), transparent 50%),
+            linear-gradient(0deg, #000 0%, #080808 100%);
+        color: #fff;
+        height: 100vh;
+        overflow: hidden;
+        margin: 0; padding: 0;
+    }
+
+    input, textarea {
+        -webkit-user-select: auto;
+        -moz-user-select: auto;
+        -ms-user-select: auto;
+        user-select: auto;
+    }
+
+    /* --- 布局设定 --- */
+    /* 竖屏时自动旋转为横屏展示（宽 < 高触发） */
+    .rotate-shell {
+        position: relative;
+        width: 100vw;
+        height: 100vh;
+        overflow: hidden;
+    }
+
+    body.force-landscape { overflow: hidden; }
+    body.force-landscape .rotate-shell {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        width: 100vh;
+        height: 100vw;
+        transform: translate(-50%, -50%) rotate(90deg);
+        transform-origin: center;
+    }
+
+    .main-viewport {
+        width: 100%;
+        height: calc(100% - var(--bar-height));
+        /* 视口四周保留 20px 间隙 */
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+        z-index: 1;
+        position: relative;
+        box-sizing: border-box; 
+    }
+
+    .video-wrapper {
+        flex: 1; 
+        width: 100%;
+        height: 100%;
+        max-width: 1600px;
+        margin: 0 auto;
+        background: var(--bg-card);
+        border: 1px solid rgba(212, 175, 55, 0.2);
+        border-radius: 6px;
+        box-shadow: 0 0 50px rgba(0, 0, 0, 0.9);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        position: relative;
+    }
+    
+    .video-wrapper::before {
+        content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+        background: linear-gradient(90deg, transparent, var(--primary), transparent);
+        opacity: 0.5; z-index: 5;
+    }
+
+    .video-header {
+        height: 50px;
+        flex-shrink: 0;
+        background: linear-gradient(180deg, #1a1a1a 0%, #0f0f0f 100%);
+        border-bottom: 1px solid #222;
+        display: flex; align-items: center; justify-content: space-between; padding: 0 20px;
+    }
+    
+    .vip-logo {
+        font-family: 'Noto Serif SC', serif; font-weight: 700; font-size: 1.1rem;
+        background: var(--gold-gradient); 
+        -webkit-background-clip: text; 
+        -webkit-text-fill-color: transparent;
+        text-shadow: 0 2px 10px rgba(212, 175, 55, 0.1);
+    }
+
+    /* 用户信息区域样式 */
+    .user-info {
+        font-size: 0.9rem;
+        color: #999;
+        display: flex;
+        align-items: center;
+        gap: 15px;
+    }
+    .user-name { color: var(--primary); font-weight: bold; }
+
+    /* 头部 VIP 状态徽标：与后台 badge 风格一致（黑金） */
+    .vip-state-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 3px 10px;
+        border-radius: 999px;
+        font-size: 0.78rem;
+        font-weight: 800;
+        letter-spacing: 0.5px;
+        border: 1px solid rgba(212, 175, 55, 0.25);
+        background: rgba(255,255,255,0.04);
+        color: #e9e9e9;
+    }
+    .vip-state-badge.active {
+        border-color: rgba(212, 175, 55, 0.38);
+        background: rgba(212, 175, 55, 0.12);
+        color: #f3d27a;
+    }
+    .vip-state-badge.inactive {
+        border-color: rgba(255,255,255,0.16);
+        background: rgba(180,180,180,0.10);
+        color: #cfcfcf;
+    }
+
+    .logout-btn { 
+        cursor: pointer; color: #666; transition: 0.3s; 
+        font-size: 0.85rem; border: 1px solid #333; padding: 2px 8px; border-radius: 4px;
+    }
+    .logout-btn:hover { color: #fff; border-color: #666; }
+
+    .video-content { flex: 1; position: relative; background: #000; width: 100%; height: 100%; }
+    
+    #videoPlayer {
+        width: 100%; height: 100%; border: none; position: absolute; top: 0; left: 0; z-index: 20; display: none;
+    }
+
+    .video-placeholder {
+        position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        background: radial-gradient(circle at center, #141414 0%, #000 100%);
+        z-index: 10;
+    }
+    
+    .placeholder-icon {
+        font-size: 5rem; margin-bottom: 25px;
+        background: var(--gold-gradient); 
+        -webkit-background-clip: text; 
+        -webkit-text-fill-color: transparent;
+        animation: pulse 3s infinite;
+    }
+
+    .vip-main-title {
+        font-family: 'Noto Serif SC', serif;
+        font-weight: 700;
+        font-size: 2rem;
+        margin-bottom: 10px;
+        letter-spacing: 2px;
+        background: var(--gold-gradient);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        filter: drop-shadow(0 2px 5px rgba(212, 175, 55, 0.2));
+    }
+
+    @keyframes pulse { 0% { opacity: 0.8; } 50% { opacity: 1; } 100% { opacity: 0.8; } }
+
+    /* --- 底部解析条 --- */
+    .fixed-parser-bar {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: var(--bar-height);
+        background: rgba(8, 8, 8, 0.95); backdrop-filter: blur(20px);
+        border-top: 1px solid rgba(212, 175, 55, 0.3);
+        box-shadow: 0 -10px 50px rgba(0,0,0,1);
+        z-index: 1000;
+        display: flex; align-items: center; justify-content: center;
+        padding: 0 20px;
+        box-sizing: border-box;
+    }
+    
+    .parser-inner { 
+        width: 100%; 
+        max-width: 1600px; 
+        display: flex; 
+        gap: 15px; 
+        align-items: center; 
+    }
+
+    .url-input {
+        flex: 1; height: 50px; background: rgba(20, 20, 20, 0.8);
+        border: 1px solid #333; color: var(--primary); padding: 0 25px;
+        border-radius: 4px; font-size: 1rem; transition: all 0.3s;
+    }
+    .url-input:focus { border-color: var(--primary); background: #000; outline: none; }
+
+    .api-select {
+        width: 240px; height: 50px; background: #0f0f0f; border: 1px solid #333; color: #ccc;
+        padding: 0 20px; border-radius: 4px; cursor: pointer; appearance: none;
+        background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23d4af37'%3e%3cpath d='M7 10l5 5 5-5z'/%3e%3c/svg%3e");
+        background-repeat: no-repeat; background-position: right 15px center; background-size: 16px;
+    }
+    .api-select:focus { border-color: var(--primary); outline: none; }
+
+    .parse-btn {
+        height: 50px; padding: 0 40px; 
+        background: var(--gold-gradient);
+        background-size: 200% auto; color: #1a1a1a; border: none; border-radius: 4px;
+        font-weight: 700; font-size: 1.1rem; cursor: pointer; display: flex; align-items: center; gap: 10px;
+        transition: all 0.3s ease;
+    }
+    .parse-btn:hover { background-position: right center; color: #000; }
+    .parse-btn:disabled { background: #333; color: #777; cursor: not-allowed; }
+
+    .loading-layer {
+        position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.92);
+        z-index: 2000; display: none; flex-direction: column; justify-content: center; align-items: center;
+    }
+
+    /* --- 极简粘贴右键菜单 --- */
+    .custom-context-menu {
+        position: absolute;
+        width: 80px;
+        background: #1a1a1a;
+        border: 1px solid rgba(212, 175, 55, 0.5);
+        box-shadow: 0 0 15px rgba(212, 175, 55, 0.2);
+        border-radius: 4px;
+        display: none;
+        z-index: 9999;
+        overflow: hidden;
+        padding: 2px 0;
+    }
+    .context-item {
+        padding: 8px 0;
+        text-align: center;
+        font-size: 15px;
+        color: #fff;
+        cursor: pointer;
+        transition: all 0.2s;
+        font-family: 'Noto Sans SC', sans-serif;
+        font-weight: 500;
+        letter-spacing: 2px;
+    }
+    .context-item:hover {
+        background: var(--primary);
+        color: #000;
+        font-weight: 700;
+    }
+
+    /* --- 激活码弹窗样式：与主页黑金风格一致 --- */
+    .activate-modal {
+        position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+        background:
+            radial-gradient(circle at 50% 15%, rgba(212, 175, 55, 0.18), transparent 45%),
+            rgba(0,0,0,0.92);
+        backdrop-filter: blur(18px);
+        z-index: 3000;
+        display: none; /* 默认隐藏 */
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        padding: 20px;
+        box-sizing: border-box;
+    }
+
+    .activate-box {
+        width: 380px;
+        max-width: 100%;
+        padding: 42px 34px;
+        background:
+            radial-gradient(circle at 50% 0%, rgba(212, 175, 55, 0.10), transparent 60%),
+            linear-gradient(180deg, #121212 0%, #0b0b0b 100%);
+        border: 1px solid rgba(212, 175, 55, 0.35);
+        box-shadow:
+            0 0 0 1px rgba(212, 175, 55, 0.12),
+            0 20px 80px rgba(0,0,0,0.85),
+            0 0 40px rgba(212, 175, 55, 0.12);
+        border-radius: 12px;
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .activate-box::before {
+        content: '';
+        position: absolute;
+        top: 0; left: 0; right: 0;
+        height: 1px;
+        background: linear-gradient(90deg, transparent, var(--primary), transparent);
+        opacity: 0.6;
+    }
+
+    .lock-icon {
+        font-size: 3.2rem;
+        margin-bottom: 18px;
+        background: var(--gold-gradient);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        filter: drop-shadow(0 6px 18px rgba(212, 175, 55, 0.12));
+    }
+
+    .activate-title {
+        color: #fff;
+        font-family: 'Noto Serif SC', serif;
+        font-size: 1.6rem;
+        margin-bottom: 10px;
+        letter-spacing: 1px;
+        background: var(--gold-gradient);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+
+    .activate-desc {
+        color: #9a9a9a;
+        font-size: 0.92rem;
+        margin-bottom: 24px;
+    }
+
+    .code-input {
+        width: 100%;
+        height: 48px;
+        background: rgba(0,0,0,0.65);
+        border: 1px solid rgba(255,255,255,0.14);
+        color: var(--primary);
+        text-align: center;
+        font-size: 1rem;
+        letter-spacing: 2px;
+        border-radius: 8px;
+        margin-bottom: 18px;
+        transition: border-color 0.25s, box-shadow 0.25s, background 0.25s;
+    }
+
+    .code-input:focus {
+        border-color: rgba(212, 175, 55, 0.65);
+        box-shadow: 0 0 0 4px rgba(212, 175, 55, 0.10);
+        background: rgba(0,0,0,0.85);
+        outline: none;
+    }
+
+    .activate-btn {
+        width: 100%;
+        height: 50px;
+        background: var(--gold-gradient);
+        background-size: 200% auto;
+        color: #1a1a1a;
+        font-weight: 800;
+        border: none;
+        border-radius: 10px;
+        cursor: pointer;
+        font-size: 1.05rem;
+        transition: all 0.25s ease;
+    }
+
+    .activate-btn:hover { background-position: right center; color: #000; }
+    .activate-btn:disabled { background: #333; color: #777; cursor: not-allowed; }
+
+    .logout-link {
+        margin-top: 18px;
+        display: block;
+        color: #7a7a7a;
+        font-size: 0.88rem;
+        text-decoration: none;
+        cursor: pointer;
+        transition: color 0.2s;
+    }
+
+    .logout-link:hover { color: #fff; }
+
+    /* 解析栏：始终单行显示（移动端也不换行） */
+    .parser-inner { flex-wrap: nowrap; }
+    .url-input { min-width: 0; }
+    .api-select { width: clamp(140px, 22vw, 240px); flex: 0 0 auto; }
+
+    @media (max-width: 900px) {
+        :root { --bar-height: 90px; }
+        .main-viewport { padding: 10px; }
+        .parser-inner { gap: 10px; }
+        .url-input { height: 46px; padding: 0 16px; font-size: 0.95rem; }
+        .api-select { height: 46px; padding: 0 14px; }
+        .parse-btn { height: 46px; padding: 0 18px; }
+        .parse-btn span { display: none; }
+        .vip-main-title { font-size: 1.5rem; }
+    }
+</style>
+</head>
+<body>
+
+    <div id="rotateShell" class="rotate-shell">
+    <!-- 主界面 -->
+    <div class="main-viewport">
+        <div class="video-wrapper">
+            <div class="video-header">
+                <div class="vip-logo"><i class="fas fa-crown"></i> SVIP CINEMA</div>
+                
+                <!-- 新增：用户信息/退出 -->
+                <div class="user-info" id="headerUserInfo">
+                    <span id="vipStatusBadge" class="vip-state-badge inactive"><i class="fas fa-lock"></i> VIP 未激活</span>
+                    <span id="displayUsername" class="user-name"></span>
+                    <span class="logout-btn" onclick="logout()">退出</span>
+                </div>
+            </div>
+
+            <div class="video-content">
+                <div class="video-placeholder" id="videoPlaceholder">
+                    <i class="fab fa-youtube placeholder-icon"></i>
+                    <h2 class="vip-main-title">黑金会员专属解析</h2>
+                    <p style="color:#666; font-size:0.9rem;">全网 VIP 视频 · 极速 · 4K · 无广告</p>
+                </div>
+                <iframe id="videoPlayer" allowfullscreen allow="autoplay; encrypted-media"></iframe>
+            </div>
+        </div>
+    </div>
+
+    <!-- 底部解析条 -->
+    <div class="fixed-parser-bar">
+        <div class="parser-inner">
+            <input type="text" id="url" class="url-input" 
+                   placeholder="在此处粘贴视频链接 (Ctrl+V) ..." 
+                   autocomplete="off">
+            
+            <select class="api-select" id="jk">
+                <option value="https://jx.xmflv.com/?url=" selected>👑 至尊 VIP 线路 1</option>
+                <option value="https://jx.nnxv.cn/tv.php?url=">💎 钻石超清线路 2</option>
+                <option value="https://z1.m1907.top/?jx=">🌟 智能极速线路 3</option>
+                <option value="https://jx.playerjy.com/?url=">⚜️ 铂金备用线路 4</option>
+                <option value="https://jx.xmflv.cc/?url=">🔥 黄金备用线路 5</option>
+                <option value="https://jx.789jiexi.com/?url=">🆘 紧急修复通道</option>
+            </select>
+            
+            <button class="parse-btn" id="playBtn" onclick="play()">
+                <i class="fas fa-play"></i> <span>立即播放</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- 激活弹窗 (默认隐藏，JS控制显示) -->
+    <div class="activate-modal" id="activateModal">
+        <div class="activate-box">
+            <div class="lock-icon"><i class="fas fa-lock"></i></div>
+            <div class="activate-title">账号未激活</div>
+            <div class="activate-desc">请输入 VIP 激活码以解锁 4K 解析权限</div>
+            <input type="text" class="code-input" id="activationCode" placeholder="VIP-XXXX-XXXX">
+            <button class="activate-btn" onclick="submitActivation()">立即激活</button>
+            <a class="logout-link" onclick="logout()">切换账号 / 退出登录</a>
+        </div>
+    </div>
+
+    <div class="loading-layer" id="loading">
+        <div style="color:var(--primary); font-size:3rem;"><i class="fas fa-circle-notch fa-spin"></i></div>
+        <h3 class="loading-text" style="margin-top:20px; color:#d4af37;">正在解析资源</h3>
+    </div>
+
+    <!-- 极简右键菜单 -->
+    <div id="customMenu" class="custom-context-menu">
+        <div class="context-item" id="menuPaste">粘贴</div>
+    </div>
+
+    </div>
+</body>
+</html>
