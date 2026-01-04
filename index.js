@@ -55,7 +55,78 @@ async function getPrimaryKeyName(conn) {
     return await getTablePrimaryKeyName(conn, 'users');
 }
 
+// --- 兼容接口：前端直连 SQL (register.html 依赖) ---
+// 注意：为避免被滥用，这里只允许对 users / email_code_temp 做 SELECT/INSERT。
+app.post('/api/mysql', async (req, res) => {
+    const body = req.body || {};
+    const sql = String(body.sql || '').trim();
+    const params = Array.isArray(body.params) ? body.params : [];
+
+    if (!sql) {
+        return res.status(400).json({ success: false, message: 'sql 不能为空' });
+    }
+
+    // 基础防注入/防破坏：禁用注释与危险关键字
+    if (/--|\/\*|\*\//.test(sql)) {
+        return res.status(400).json({ success: false, message: 'SQL 含非法注释' });
+    }
+
+    if (/\b(drop|alter|truncate|update|delete|create|grant|revoke)\b/i.test(sql)) {
+        return res.status(400).json({ success: false, message: '不允许的 SQL 操作' });
+    }
+
+    // 逐语句校验（支持 register.html 的多语句 SELECT）
+    const statements = sql.split(';').map(s => s.trim()).filter(Boolean);
+    if (statements.length === 0) {
+        return res.status(400).json({ success: false, message: 'SQL 为空' });
+    }
+
+    const allowTables = ['users', 'email_code_temp'];
+    for (const s of statements) {
+        const head = s.slice(0, 20).toLowerCase();
+        const isSelect = /^select\b/i.test(s);
+        const isInsert = /^insert\b/i.test(s);
+        if (!isSelect && !isInsert) {
+            return res.status(400).json({ success: false, message: '仅允许 SELECT/INSERT' });
+        }
+
+        if (isSelect) {
+            const m = s.match(/\bfrom\s+([a-zA-Z0-9_]+)/i);
+            const t = (m && m[1]) ? m[1].toLowerCase() : '';
+            if (!allowTables.includes(t)) {
+                return res.status(400).json({ success: false, message: '不允许查询该表' });
+            }
+        }
+
+        if (isInsert) {
+            const m = s.match(/\binto\s+([a-zA-Z0-9_]+)/i);
+            const t = (m && m[1]) ? m[1].toLowerCase() : '';
+            if (!allowTables.includes(t)) {
+                return res.status(400).json({ success: false, message: '不允许写入该表' });
+            }
+        }
+
+        // 额外阻断系统库
+        if (/\binformation_schema\b|\bmysql\b|\bperformance_schema\b|\bsys\b/i.test(s)) {
+            return res.status(400).json({ success: false, message: '非法库访问' });
+        }
+    }
+
+    let conn;
+    try {
+        conn = await mysql.createConnection({ ...dbConfig, multipleStatements: true });
+        const [result] = await conn.query(sql, params);
+        // 兼容 register.html：多语句时 result 为数组
+        return res.json(result);
+    } catch (e) {
+        return res.status(500).json({ success: false, error: e.message });
+    } finally {
+        if (conn) conn.end();
+    }
+});
+
 // --- 核心 API ---
+
 
 // 1. 登录
 app.post('/api/login', async (req, res) => {
