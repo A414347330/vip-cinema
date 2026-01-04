@@ -12,8 +12,15 @@
         body { margin: 0; background: var(--bg-body); color: var(--text-color); font-family: 'Noto Sans SC', sans-serif; }
         .navbar { height: 70px; background: rgba(10,10,10,0.95); border-bottom: 1px solid rgba(212, 175, 55, 0.3); display: flex; justify-content: space-between; align-items: center; padding: 0 40px; position: sticky; top: 0; z-index: 100; }
         .brand { font-size: 1.4rem; font-weight: bold; background: var(--gold-gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-        .logout-btn { background: #333; color: #fff; border: 1px solid #555; padding: 5px 15px; cursor: pointer; border-radius: 4px; }
+        .nav-right { display: flex; align-items: center; gap: 12px; }
+        .nav-btn { background: rgba(255,255,255,0.04); color: #fff; border: 1px solid rgba(212, 175, 55, 0.25); padding: 6px 14px; cursor: pointer; border-radius: 10px; font-weight: 800; transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease; }
+        .nav-btn:hover { transform: translateY(-1px); box-shadow: 0 10px 22px rgba(0,0,0,0.35); }
+        .nav-btn:active { transform: translateY(0px); opacity: 0.9; }
+        .logout-btn { background: #333; color: #fff; border: 1px solid #555; padding: 6px 14px; cursor: pointer; border-radius: 10px; font-weight: 800; transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease; }
+        .logout-btn:hover { transform: translateY(-1px); box-shadow: 0 10px 22px rgba(0,0,0,0.35); }
+        .logout-btn:active { transform: translateY(0px); opacity: 0.9; }
         .container { max-width: 1300px; margin: 30px auto; padding: 0 20px; }
+
         .tabs { display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 1px solid #333; }
         .tab-btn { background: none; border: none; color: #888; padding: 12px 25px; cursor: pointer; font-size: 1rem; }
         .tab-btn.active { color: var(--primary); border-bottom: 2px solid var(--primary); font-weight: bold; }
@@ -71,6 +78,19 @@
         .data-table td small { color: #9a9a9a; }
         .cell-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
         .cell-muted { color: #9a9a9a; }
+
+        /* 用户列表：单行信息 + 合理间距 */
+        .account-cell { display: flex; align-items: center; gap: 10px; min-width: 0; }
+        .account-line { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1; }
+        .account-name { font-weight: 850; color: #f1f1f1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .account-email { color: #9a9a9a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 520px; }
+        .meta-dot { width: 4px; height: 4px; border-radius: 50%; background: rgba(212,175,55,0.45); display: inline-block; flex: 0 0 auto; }
+
+        .vip-inline { display: inline-flex; align-items: center; gap: 10px; white-space: nowrap; }
+        .vip-expire { font-size: 0.78rem; color: #9a9a9a; }
+
+        .user-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; white-space: nowrap; }
+        .btn-icon { padding: 6px 10px; border-radius: 10px; }
 
         /* 空状态 / 加载骨架 */
         .table-empty { text-align: center; padding: 26px 10px; color: #8a8a8a; }
@@ -213,8 +233,10 @@
     <div class="brand"><i class="fas fa-user-shield"></i> SVIP 全能管理后台</div>
     <div class="nav-right">
         <span id="adminName">管理员</span>
+        <button class="nav-btn" onclick="openProfileModal()"><i class="fas fa-user-circle"></i> 个人中心</button>
         <button class="logout-btn" onclick="logout()">退出</button>
     </div>
+
 </div>
 
 <div class="container">
@@ -241,9 +263,9 @@
                         <th style="width:46px;"><input type="checkbox" onclick="toggleSelectAll('user-cb', this)"></th>
                         <th style="width:90px;">ID</th>
                         <th>账号信息</th>
-                        <th style="width:140px;">角色</th>
-                        <th style="width:140px;">VIP</th>
-                        <th style="width:170px;">操作</th>
+                        <th style="width:130px;">角色</th>
+                        <th style="width:220px;">VIP</th>
+                        <th style="width:120px;">操作</th>
                     </tr>
                 </thead>
                 <tbody id="userTableBody"></tbody>
@@ -358,9 +380,49 @@
 </div>
 
 <!-- 弹窗及脚本逻辑保持一致 ... -->
+<div id="profileModal" class="modal hidden">
+    <h3 style="margin-top:0; color: var(--primary);">个人中心</h3>
+
+    <div style="padding:12px 14px; border:1px solid rgba(255,255,255,0.10); border-radius: 12px; background: rgba(255,255,255,0.03); margin-bottom: 14px;">
+            <div style="display:flex; justify-content: space-between; gap: 10px; align-items: center; margin-bottom: 10px;">
+            <div style="font-weight: 900; color:#eaeaea;">账户信息</div>
+            <div id="myRoleBadge" style="display:none;"></div>
+        </div>
+
+        <div style="display:grid; grid-template-columns: 90px 1fr; row-gap: 8px; column-gap: 10px; font-size: 0.92rem;">
+            <div class="cell-muted">用户ID</div>
+            <div class="cell-mono" id="myId">-</div>
+            <div class="cell-muted">账号</div>
+            <div class="cell-mono" id="myUsername">-</div>
+            <div class="cell-muted">邮箱</div>
+            <div class="cell-mono" id="myEmail">-</div>
+            <div class="cell-muted">VIP</div>
+            <div id="myVip">-</div>
+        </div>
+    </div>
+
+    <div style="padding:12px 14px; border:1px solid rgba(255,255,255,0.10); border-radius: 12px; background: rgba(255,255,255,0.03);">
+        <div style="font-weight: 900; color:#eaeaea; margin-bottom: 10px;">修改密码</div>
+        <label class="form-label" style="margin-top:0;">旧密码</label>
+        <input type="password" id="oldPwd" placeholder="请输入旧密码" autocomplete="current-password">
+
+        <label class="form-label">新密码</label>
+        <input type="password" id="newPwd" placeholder="请输入新密码" autocomplete="new-password">
+
+        <label class="form-label">确认新密码</label>
+        <input type="password" id="newPwd2" placeholder="再次输入新密码" autocomplete="new-password">
+
+        <button class="btn btn-primary" style="width:100%;" id="btnChangePwd" onclick="changeMyPassword()">保存新密码</button>
+        <div class="help-text" style="margin-top: 10px;">提示：为保证安全，修改密码需要输入旧密码验证。</div>
+    </div>
+
+    <button class="btn" style="width:100%; background:#444; color:#fff; margin-top:12px;" onclick="closeModal()">关闭</button>
+</div>
+
 <div id="editModal" class="modal hidden">
     <h3>编辑用户信息</h3>
     <input type="hidden" id="editUserId">
+
 
     <label>角色切换</label>
     <select id="editRole">
@@ -382,8 +444,10 @@
 </div>
 <div id="overlay" class="overlay hidden" onclick="closeModal()"></div>
 
+<script src="https://cdn.bootcdn.net/ajax/libs/blueimp-md5/2.19.0/js/md5.min.js"></script>
 <script>
     const userSession = JSON.parse(localStorage.getItem('vip_user') || '{}');
+
     const adminAccount = userSession.username;
 
     // 用户分页状态（每页 10 条）
@@ -505,6 +569,37 @@
         }
     }
 
+    function formatDateTimeLikeAdmin(time) {
+        if (!time) return '-';
+        try {
+            const d = new Date(time);
+            if (Number.isNaN(d.getTime())) return String(time);
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${y}-${m}-${day}`;
+        } catch (e) {
+            return String(time);
+        }
+    }
+
+    async function copyUserAccount(value, btn) {
+        try {
+            await copyToClipboard(value);
+            if (btn) {
+                const old = btn.innerHTML;
+                btn.innerHTML = '<i class="fas fa-check"></i>'; 
+                btn.disabled = true;
+                setTimeout(() => {
+                    btn.innerHTML = old;
+                    btn.disabled = false;
+                }, 900);
+            }
+        } catch (e) {
+            alert('复制失败，请手动复制');
+        }
+    }
+
     function updateUserPagerUI() {
         const info = document.getElementById('userPagerInfo');
         const pageIndicator = document.getElementById('pageIndicator');
@@ -531,18 +626,38 @@
         for (const u of list) {
             const tr = document.createElement('tr');
             tr.className = 'user-row';
+
+            const expireText = Number(u.is_active) === 1
+                ? `到期：${formatDateTimeLikeAdmin(u.vip_expire_time || u.expire_time || u.vipExpireTime || '')}`
+                : '未激活';
+
             tr.innerHTML = `
                 <td><input type="checkbox" class="user-cb" value="${u.id}"></td>
                 <td class="cell-mono">${u.id}</td>
                 <td>
-                    <div>${u.username}</div>
-                    <small class="cell-muted">${u.email || '-'}</small>
+                    <div class="account-cell">
+                        <div class="account-line">
+                            <span class="account-name">${u.username}</span>
+                            <span class="meta-dot"></span>
+                            <span class="account-email cell-mono">${u.email || '-'}</span>
+                        </div>
+                        <button class="btn btn-outline btn-sm btn-icon" title="复制账号" onclick='copyUserAccount(${JSON.stringify(u.username)}, this)'>
+                            <i class="fas fa-copy"></i>
+                        </button>
+                    </div>
                 </td>
                 <td>${roleBadge(u.role)}</td>
-                <td>${vipBadge(u.is_active)}</td>
-                <td style="display:flex; gap:8px; flex-wrap:wrap;">
-                    <button class="btn btn-outline btn-sm" onclick='openEditModal(${JSON.stringify(u)})'><i class="fas fa-pen"></i> 编辑</button>
-                    <button class="btn btn-danger btn-sm" onclick="deleteUser(${u.id})"><i class="fas fa-trash"></i> 删除</button>
+                <td>
+                    <div class="vip-inline">
+                        ${vipBadge(u.is_active)}
+                        <span class="vip-expire">${expireText}</span>
+                    </div>
+                </td>
+                <td>
+                    <div class="user-actions">
+                        <button class="btn btn-outline btn-sm btn-icon" title="编辑" onclick='openEditModal(${JSON.stringify(u)})'><i class="fas fa-pen"></i></button>
+                        <button class="btn btn-danger btn-sm btn-icon" title="删除" onclick="deleteUser(${u.id})"><i class="fas fa-trash"></i></button>
+                    </div>
                 </td>
             `;
             tbody.appendChild(tr);
@@ -609,6 +724,10 @@
         loadUsers({ resetPage: true });
     }
 
+    document.getElementById('userSearch').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') onUserSearch();
+    });
+
     function updateCodePagerUI() {
         const info = document.getElementById('codePagerInfo');
         const pageIndicator = document.getElementById('codePageIndicator');
@@ -635,6 +754,15 @@
         for (const c of list) {
             const tr = document.createElement('tr');
             tr.className = 'user-row';
+            const usedByText = c.used_by || '';
+            const usedBadge = c.is_used
+                ? '<span class="badge bg-danger"><i class="fas fa-lock"></i> 已使用</span>'
+                : '<span class="badge bg-success"><i class="fas fa-check"></i> 未使用</span>';
+
+            const usedLine = c.is_used
+                ? `<div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">${usedBadge}<span class="cell-mono" style="color:#e9e9e9;">${usedByText}</span></div>`
+                : `${usedBadge}`;
+
             tr.innerHTML = `
                 <td>
                     <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
@@ -644,11 +772,13 @@
                 </td>
                 <td><span class="badge badge-vip"><i class="fas fa-clock"></i> ${c.duration_days} 天</span></td>
                 <td><span class="badge ${c.is_used ? 'bg-danger' : 'bg-success'}"><i class="fas ${c.is_used ? 'fa-lock' : 'fa-check'}"></i> ${c.is_used ? '已使用' : '有效'}</span></td>
-                <td class="cell-mono">${c.used_by || '-'}</td>
+                <td>${usedLine}</td>
                 <td>
                     <button class="btn btn-danger btn-sm" onclick="deleteCode(${c.id == null ? 'null' : c.id}, '${c.code}')"><i class="fas fa-ban"></i> 作废</button>
                 </td>
             `;
+
+
             tbody.appendChild(tr);
             await new Promise(r => setTimeout(r, 30));
         }
@@ -845,6 +975,114 @@
         loadCodes({ resetPage: false });
     }
 
+    async function openProfileModal() {
+        document.getElementById('profileModal').classList.remove('hidden');
+        document.getElementById('overlay').classList.remove('hidden');
+        await loadMyProfile();
+        const oldPwd = document.getElementById('oldPwd');
+        if (oldPwd) oldPwd.focus();
+    }
+
+    async function loadMyProfile() {
+        const setText = (id, val) => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.textContent = (val === undefined || val === null || val === '') ? '-' : String(val);
+        };
+
+        setText('myId', '加载中...');
+        setText('myUsername', '加载中...');
+        setText('myEmail', '加载中...');
+        const vipEl = document.getElementById('myVip');
+        if (vipEl) vipEl.innerHTML = '<span class="cell-muted">加载中...</span>';
+
+        const roleBox = document.getElementById('myRoleBadge');
+        if (roleBox) { roleBox.style.display = 'none'; roleBox.innerHTML = ''; }
+
+        try {
+            const res = await fetch('/api/user/me', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: userSession.id, username: userSession.username })
+            });
+            const data = await res.json();
+            if (!data || !data.success) {
+                setText('myId', userSession.id || '-');
+                setText('myUsername', userSession.username || '-');
+                setText('myEmail', '-');
+                if (vipEl) vipEl.innerHTML = vipBadge(userSession.is_active);
+                return;
+            }
+
+            const u = data.user || {};
+            setText('myId', u.id);
+            setText('myUsername', u.username);
+            setText('myEmail', u.email || '-');
+
+            if (vipEl) {
+                const expireText = Number(u.is_active) === 1
+                    ? `到期：${formatDateTimeLikeAdmin(u.vip_expire_time || '')}`
+                    : '未激活';
+                vipEl.innerHTML = `<div class="vip-inline">${vipBadge(u.is_active)}<span class="vip-expire">${expireText}</span></div>`;
+            }
+
+            if (roleBox) {
+                roleBox.style.display = 'inline-block';
+                roleBox.innerHTML = roleBadge(u.role);
+            }
+        } catch (e) {
+            setText('myId', userSession.id || '-');
+            setText('myUsername', userSession.username || '-');
+            setText('myEmail', '-');
+            if (vipEl) vipEl.innerHTML = vipBadge(userSession.is_active);
+        }
+    }
+
+    async function changeMyPassword() {
+        const oldPwd = document.getElementById('oldPwd').value;
+        const newPwd = document.getElementById('newPwd').value;
+        const newPwd2 = document.getElementById('newPwd2').value;
+        const btn = document.getElementById('btnChangePwd');
+
+        if (!oldPwd || !newPwd || !newPwd2) {
+            alert('请填写完整的密码信息');
+            return;
+        }
+        if (newPwd !== newPwd2) {
+            alert('两次输入的新密码不一致');
+            return;
+        }
+        if (newPwd.length < 6) {
+            alert('新密码长度至少 6 位');
+            return;
+        }
+
+        if (btn) btn.disabled = true;
+        try {
+            const res = await fetch('/api/user/change_password', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    id: userSession.id,
+                    username: userSession.username,
+                    oldPasswordHash: md5(oldPwd),
+                    newPasswordHash: md5(newPwd)
+                })
+            });
+            const data = await res.json();
+            if (data && data.success) {
+                alert('密码修改成功，请重新登录');
+                logout();
+            } else {
+                alert((data && data.message) || '修改失败，请检查旧密码');
+            }
+        } catch (e) {
+            alert('网络异常，请稍后重试');
+        } finally {
+            if (btn) btn.disabled = false;
+        }
+    }
+
     function openEditModal(u) {
         document.getElementById('editUserId').value = u.id;
         document.getElementById('editRole').value = u.role;
@@ -854,9 +1092,20 @@
         document.getElementById('overlay').classList.remove('hidden');
     }
     function closeModal() {
-        document.getElementById('editModal').classList.add('hidden');
+        const edit = document.getElementById('editModal');
+        const profile = document.getElementById('profileModal');
+        if (edit) edit.classList.add('hidden');
+        if (profile) profile.classList.add('hidden');
         document.getElementById('overlay').classList.add('hidden');
+
+        // 清空密码输入，避免残留
+        const ids = ['oldPwd', 'newPwd', 'newPwd2'];
+        ids.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.value = '';
+        });
     }
+
 
     async function saveUserEdit() {
         const payload = {
