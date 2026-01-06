@@ -7,6 +7,7 @@
 <!-- 引入字体和图标 -->
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@500;700&family=Noto+Sans+SC:wght@300;400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="theme.css">
 
 <style>
     /* --- 核心变量 (与主页保持一致) --- */
@@ -21,13 +22,9 @@
     * { box-sizing: border-box; }
 
     body {
-        margin: 0; padding: 0;
+        margin: 0;
+        padding: 0;
         font-family: 'Noto Sans SC', sans-serif;
-        background-color: var(--bg-body);
-        /* 统一背景纹理 */
-        background-image: 
-            radial-gradient(circle at 50% 0%, rgba(212, 175, 55, 0.15), transparent 50%),
-            linear-gradient(0deg, #000 0%, #080808 100%);
         color: #fff;
         min-height: 100vh;
         display: flex;
@@ -43,19 +40,29 @@
         padding: 40px 30px;
         margin: 20px;
         background: var(--glass-bg);
-        backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
         border: 1px solid rgba(212, 175, 55, 0.3);
         border-radius: 12px;
         box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.9);
         position: relative;
+        overflow: hidden; /* 裁切顶条/阴影，避免圆角处出现断层 */
+        isolation: isolate; /* 避免 backdrop-filter 叠加导致边缘发灰 */
         animation: fadeInUp 0.8s cubic-bezier(0.2, 0.8, 0.2, 1);
     }
 
     /* 顶部金色流光条 */
     .register-wrapper::before {
-        content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -1px;
+        right: -1px;
+        height: 2px;
         background: var(--gold-gradient);
-        opacity: 0.8; border-radius: 12px 12px 0 0;
+        opacity: 0.85;
+        border-radius: 12px 12px 0 0;
+        pointer-events: none;
     }
 
     @keyframes fadeInUp {

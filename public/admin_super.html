@@ -6,10 +6,15 @@
     <title>超级控制台 - SVIP CINEMA</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="theme.css">
     <style>
         :root { --bg-body: #050505; --card-bg: rgba(20, 20, 20, 0.9); --primary: #d4af37; --gold-gradient: linear-gradient(135deg, #bf953f, #fcf6ba, #b38728, #fbf5b7, #aa771c); --text-color: #e0e0e0; --border: 1px solid rgba(212, 175, 55, 0.2); }
         * { box-sizing: border-box; }
-        body { margin: 0; background: var(--bg-body); color: var(--text-color); font-family: 'Noto Sans SC', sans-serif; }
+        body {
+            margin: 0;
+            color: var(--text-color);
+            font-family: 'Noto Sans SC', sans-serif;
+        }
         .navbar { height: 70px; background: rgba(10,10,10,0.95); border-bottom: 1px solid rgba(212, 175, 55, 0.3); display: flex; justify-content: space-between; align-items: center; padding: 0 40px; position: sticky; top: 0; z-index: 100; }
         .brand { font-size: 1.4rem; font-weight: bold; background: var(--gold-gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
         .nav-right { display: flex; align-items: center; gap: 12px; }
@@ -233,7 +238,6 @@
     <div class="brand"><i class="fas fa-user-shield"></i> SVIP 全能管理后台</div>
     <div class="nav-right">
         <span id="adminName">管理员</span>
-        <button class="nav-btn" onclick="openProfileModal()"><i class="fas fa-user-circle"></i> 个人中心</button>
         <button class="logout-btn" onclick="logout()">退出</button>
     </div>
 
@@ -244,6 +248,7 @@
         <button class="tab-btn active" onclick="switchTab('user-sec', event)">用户管理</button>
         <button class="tab-btn" onclick="switchTab('code-sec', event)">激活码管理</button>
         <button class="tab-btn" onclick="switchTab('captcha-sec', event)">验证码记录</button>
+        <button class="tab-btn" onclick="switchTab('profile-sec', event)">设置中心</button>
     </div>
 
     <!-- 1. 用户管理 -->
@@ -351,13 +356,15 @@
         <div class="toolbar">
             <div class="toolbar-title">验证码记录</div>
             <div class="toolbar-actions">
-                <span class="cell-muted">仅用于排查注册/登录验证码发送情况</span>
+                <button class="btn btn-danger" onclick="batchDeleteCaptchas()"><i class="fas fa-trash"></i> 批量删除</button>
+                <span class="cell-muted">勾选后可删除（仅用于排查注册/登录验证码发送情况）</span>
             </div>
         </div>
         <div class="table-wrap">
             <table class="data-table">
                 <thead>
                     <tr>
+                        <th style="width:46px;"><input type="checkbox" id="captchaSelectAll" onclick="toggleSelectAll('captcha-cb', this)"></th>
                         <th>邮箱</th>
                         <th style="width:160px;">验证码</th>
                         <th style="width:220px;">生成时间</th>
@@ -377,48 +384,64 @@
             </div>
         </div>
     </div>
+
+    <!-- 4. 设置中心 -->
+    <div id="profile-sec" class="tab-content card hidden">
+        <div class="toolbar">
+            <div class="toolbar-title">管理员信息</div>
+        </div>
+        <div class="card" style="margin-bottom: 20px;">
+            <table class="data-table">
+                <tr>
+                    <td style="width: 120px;"><strong>账号ID</strong></td>
+                    <td id="myId">-</td>
+                </tr>
+                <tr>
+                    <td><strong>用户名</strong></td>
+                    <td id="myUsername">-</td>
+                </tr>
+                <tr>
+                    <td><strong>邮箱</strong></td>
+                    <td id="myEmail">-</td>
+                </tr>
+                <tr>
+                    <td><strong>角色</strong></td>
+                    <td><span id="myRoleBadge"></span></td>
+                </tr>
+                <tr>
+                    <td><strong>VIP状态</strong></td>
+                    <td id="myVip">-</td>
+                </tr>
+            </table>
+        </div>
+
+        <div class="toolbar">
+            <div class="toolbar-title">修改密码</div>
+        </div>
+        <div class="card">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                <div>
+                    <label class="form-label">当前密码</label>
+                    <input type="password" id="oldPwd" placeholder="请输入当前密码">
+                </div>
+                <div></div> <!-- 空白格子用于布局对齐 -->
+                <div>
+                    <label class="form-label">新密码</label>
+                    <input type="password" id="newPwd" placeholder="请输入新密码">
+                </div>
+                <div>
+                    <label class="form-label">确认新密码</label>
+                    <input type="password" id="newPwd2" placeholder="请再次输入新密码">
+                </div>
+            </div>
+            <button class="btn btn-primary" style="width: 100%; margin-top: 20px;" id="btnChangePwd" onclick="changeMyPassword()">
+                <i class="fas fa-key"></i> 修改密码
+            </button>
+        </div>
+    </div>
 </div>
 
 <!-- 弹窗及脚本逻辑保持一致 ... -->
-<div id="profileModal" class="modal hidden">
-    <h3 style="margin-top:0; color: var(--primary);">个人中心</h3>
-
-    <div style="padding:12px 14px; border:1px solid rgba(255,255,255,0.10); border-radius: 12px; background: rgba(255,255,255,0.03); margin-bottom: 14px;">
-            <div style="display:flex; justify-content: space-between; gap: 10px; align-items: center; margin-bottom: 10px;">
-            <div style="font-weight: 900; color:#eaeaea;">账户信息</div>
-            <div id="myRoleBadge" style="display:none;"></div>
-        </div>
-
-        <div style="display:grid; grid-template-columns: 90px 1fr; row-gap: 8px; column-gap: 10px; font-size: 0.92rem;">
-            <div class="cell-muted">用户ID</div>
-            <div class="cell-mono" id="myId">-</div>
-            <div class="cell-muted">账号</div>
-            <div class="cell-mono" id="myUsername">-</div>
-            <div class="cell-muted">邮箱</div>
-            <div class="cell-mono" id="myEmail">-</div>
-            <div class="cell-muted">VIP</div>
-            <div id="myVip">-</div>
-        </div>
-    </div>
-
-    <div style="padding:12px 14px; border:1px solid rgba(255,255,255,0.10); border-radius: 12px; background: rgba(255,255,255,0.03);">
-        <div style="font-weight: 900; color:#eaeaea; margin-bottom: 10px;">修改密码</div>
-        <label class="form-label" style="margin-top:0;">旧密码</label>
-        <input type="password" id="oldPwd" placeholder="请输入旧密码" autocomplete="current-password">
-
-        <label class="form-label">新密码</label>
-        <input type="password" id="newPwd" placeholder="请输入新密码" autocomplete="new-password">
-
-        <label class="form-label">确认新密码</label>
-        <input type="password" id="newPwd2" placeholder="再次输入新密码" autocomplete="new-password">
-
-        <button class="btn btn-primary" style="width:100%;" id="btnChangePwd" onclick="changeMyPassword()">保存新密码</button>
-        <div class="help-text" style="margin-top: 10px;">提示：为保证安全，修改密码需要输入旧密码验证。</div>
-    </div>
-
-    <button class="btn" style="width:100%; background:#444; color:#fff; margin-top:12px;" onclick="closeModal()">关闭</button>
-</div>
-
 <div id="editModal" class="modal hidden">
     <h3>编辑用户信息</h3>
     <input type="hidden" id="editUserId">
@@ -499,6 +522,7 @@
         if(id === 'user-sec') loadUsers({ resetPage: false });
         if(id === 'code-sec') loadCodes({ resetPage: false });
         if(id === 'captcha-sec') loadCaptchas({ resetPage: false });
+        if(id === 'profile-sec') loadMyProfile();
     }
 
     function roleBadge(role) {
@@ -513,7 +537,7 @@
             const d = new Date(expireTime);
             if (Number.isNaN(d.getTime())) return null;
             const ms = d.getTime() - Date.now();
-            return Math.floor(ms / 86400000);
+            return Math.floor(ms / 86600000);
         } catch (e) {
             return null;
         }
@@ -896,16 +920,25 @@
         const tbody = document.getElementById('captchaTableBody');
         tbody.innerHTML = '';
 
+        const master = document.getElementById('captchaSelectAll');
+        if (master) master.checked = false;
+
         const list = Array.isArray(logs) ? logs : [];
         if (list.length === 0) {
-            renderTableEmpty(tbody, 3, '暂无验证码记录');
+            renderTableEmpty(tbody, 4, '暂无验证码记录');
             return;
         }
 
         for (const log of list) {
             const tr = document.createElement('tr');
             tr.className = 'user-row';
+
+            const id = (log && (log.id ?? log._id)) ?? '';
+            const idVal = String(id);
+            const disabled = !idVal || idVal === 'undefined' || idVal === 'null';
+
             tr.innerHTML = `
+                <td style="width:46px;"><input type="checkbox" class="captcha-cb" value="${disabled ? '' : idVal}" ${disabled ? 'disabled' : ''}></td>
                 <td class="cell-mono">${log.email}</td>
                 <td class="cell-mono" style="color:var(--primary); font-weight:900; letter-spacing:1px;">${log.code}</td>
                 <td>${new Date(log.create_time).toLocaleString()}</td>
@@ -919,9 +952,12 @@
         if (captchaPagerState.loading) return;
         if (resetPage) captchaPagerState.page = 1;
 
+        const master = document.getElementById('captchaSelectAll');
+        if (master) master.checked = false;
+
         captchaPagerState.loading = true;
         updateCaptchaPagerUI();
-        renderTableLoading(document.getElementById('captchaTableBody'), 3, 6);
+        renderTableLoading(document.getElementById('captchaTableBody'), 4, 6);
 
         try {
             const res = await fetch('/api/admin/captchas', {
@@ -941,13 +977,21 @@
                 captchaPagerState.pageSize = Number(data.pageSize || captchaPagerState.pageSize);
                 captchaPagerState.totalPages = Math.max(1, Math.ceil(captchaPagerState.total / captchaPagerState.pageSize));
 
+                // 防止删除后出现“空页”
+                if (captchaPagerState.page > captchaPagerState.totalPages) {
+                    captchaPagerState.page = captchaPagerState.totalPages;
+                    captchaPagerState.loading = false;
+                    updateCaptchaPagerUI();
+                    return loadCaptchas({ resetPage: false });
+                }
+
                 updateCaptchaPagerUI();
                 await renderCaptchasProgressively(data.logs || []);
             } else {
-                renderTableEmpty(document.getElementById('captchaTableBody'), 3, '加载失败，请稍后重试');
+                renderTableEmpty(document.getElementById('captchaTableBody'), 4, '加载失败，请稍后重试');
             }
         } catch (e) {
-            renderTableEmpty(document.getElementById('captchaTableBody'), 3, '网络异常，请检查服务是否启动');
+            renderTableEmpty(document.getElementById('captchaTableBody'), 4, '网络异常，请检查服务是否启动');
         } finally {
             captchaPagerState.loading = false;
             updateCaptchaPagerUI();
@@ -998,12 +1042,35 @@
         loadCodes({ resetPage: false });
     }
 
-    async function openProfileModal() {
-        document.getElementById('profileModal').classList.remove('hidden');
-        document.getElementById('overlay').classList.remove('hidden');
-        await loadMyProfile();
-        const oldPwd = document.getElementById('oldPwd');
-        if (oldPwd) oldPwd.focus();
+    async function batchDeleteCaptchas() {
+        const cbs = Array.from(document.querySelectorAll('.captcha-cb:checked'));
+        const ids = cbs.map(cb => cb.value).filter(Boolean);
+
+        if (ids.length === 0) {
+            alert('请先勾选要删除的验证码记录');
+            return;
+        }
+
+        if (!confirm(`确定要删除选中的 ${ids.length} 条验证码记录吗？此操作不可恢复。`)) return;
+
+        try {
+            const res = await fetch('/api/admin/captchas/delete', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ adminUser: adminAccount, ids })
+            });
+            const data = await res.json();
+            if (data && data.success) {
+                const master = document.getElementById('captchaSelectAll');
+                if (master) master.checked = false;
+                alert(`已删除 ${Number(data.affected || 0)} 条记录`);
+                loadCaptchas({ resetPage: false });
+            } else {
+                alert((data && data.message) || '删除失败，请稍后重试');
+            }
+        } catch (e) {
+            alert('网络异常，请稍后重试');
+        }
     }
 
     async function loadMyProfile() {

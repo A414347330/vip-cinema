@@ -6,12 +6,49 @@
     <title>会员登录 - 黑金至尊版</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@500;700&family=Noto+Sans+SC:wght@300;400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="theme.css">
     <style>
         :root { --bg-body: #050505; --primary: #d4af37; --gold-gradient: linear-gradient(135deg, #bf953f, #fcf6ba, #b38728, #fbf5b7, #aa771c); --glass-bg: rgba(20, 20, 20, 0.85); --input-bg: rgba(0, 0, 0, 0.6); }
         * { box-sizing: border-box; }
-        body { margin: 0; padding: 0; font-family: 'Noto Sans SC', sans-serif; background-color: var(--bg-body); background-image: radial-gradient(circle at 50% 0%, rgba(212, 175, 55, 0.15), transparent 50%), linear-gradient(0deg, #000 0%, #080808 100%); color: #fff; height: 100vh; display: flex; justify-content: center; align-items: center; overflow: hidden; }
-        .login-wrapper { width: 100%; max-width: 420px; padding: 40px 30px; margin: 20px; background: var(--glass-bg); backdrop-filter: blur(20px); border: 1px solid rgba(212, 175, 55, 0.3); border-radius: 12px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.9); position: relative; animation: fadeInUp 0.8s cubic-bezier(0.2, 0.8, 0.2, 1); }
-        .login-wrapper::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: var(--gold-gradient); opacity: 0.8; border-radius: 12px 12px 0 0; }
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Noto Sans SC', sans-serif;
+            color: #fff;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+        .login-wrapper {
+            width: 100%;
+            max-width: 420px;
+            padding: 40px 30px;
+            margin: 20px;
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(212, 175, 55, 0.3);
+            border-radius: 12px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.9);
+            position: relative;
+            overflow: hidden; /* 裁切顶条/阴影，避免圆角处出现断层 */
+            isolation: isolate; /* 避免 backdrop-filter 叠加导致边缘发灰 */
+            animation: fadeInUp 0.8s cubic-bezier(0.2, 0.8, 0.2, 1);
+        }
+        .login-wrapper::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -1px;
+            right: -1px;
+            height: 2px;
+            background: var(--gold-gradient);
+            opacity: 0.85;
+            border-radius: 12px 12px 0 0;
+            pointer-events: none;
+        }
+
         @keyframes fadeInUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
         .header { text-align: center; margin-bottom: 35px; }
         .logo { font-family: 'Noto Serif SC', serif; font-size: 1.5rem; font-weight: 700; background: var(--gold-gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 10px; letter-spacing: 2px; text-shadow: 0 2px 10px rgba(212, 175, 55, 0.1); }

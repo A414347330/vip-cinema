@@ -1,0 +1,27 @@
+:root {
+  --bg-body: #050505;
+  --primary: #d4af37;
+  --gold-gradient: linear-gradient(135deg, #bf953f, #fcf6ba, #b38728, #fbf5b7, #aa771c);
+}
+
+html {
+  background-color: var(--bg-body, #050505);
+}
+
+body {
+  background-color: var(--bg-body, #050505);
+  background-image:
+    radial-gradient(880px circle at 18% 8%, rgba(212, 175, 55, 0.20), transparent 62%),
+    radial-gradient(760px circle at 82% 12%, rgba(140, 90, 255, 0.07), transparent 58%),
+    radial-gradient(1100px circle at 50% 100%, rgba(212, 175, 55, 0.10), transparent 65%),
+    linear-gradient(180deg, #070707 0%, #000 55%, #050505 100%);
+  background-repeat: no-repeat;
+  background-size: cover;
+  background-attachment: fixed;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body {
+    background-attachment: scroll;
+  }
+}

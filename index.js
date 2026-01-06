@@ -6,10 +6,11 @@ const bodyParser = require('body-parser');
 
 const app = express();
 
-// Zeabur / PaaS 通常会注入 PORT；另外保留 ZEABUR_PORT 兜底
-const PORT = Number(process.env.PORT || process.env.ZEABUR_PORT || 3000);
-// 显式绑定到 0.0.0.0，避免某些容器环境只绑定 localhost 导致外部无法访问
-const HOST = process.env.HOST || '0.0.0.0';
+// Zeabur 会注入 PORT（默认 8080）；另外保留 ZEABUR_PORT 兜底
+const PORT = Number(process.env.PORT || process.env.ZEABUR_PORT || 8080);
+// 在 Zeabur 这类平台必须绑定 0.0.0.0（不要跟随 HOST 环境变量，避免被误配成 localhost）
+const HOST = '0.0.0.0';
+
 
 // 记录未捕获异常，方便在 Zeabur 日志里直接定位崩溃原因
 process.on('unhandledRejection', (reason) => {
@@ -25,10 +26,23 @@ app.use(cors());
 app.use(bodyParser.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
+// 根路由兜底（防止某些静态托管/路由配置导致 / 404）
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
 // 健康检查：用于 Zeabur 探活/你自己访问排查
 app.get('/health', (req, res) => {
-    res.json({ ok: true, time: new Date().toISOString(), port: PORT, node: process.version });
+    res.json({
+        ok: true,
+        time: new Date().toISOString(),
+        port: PORT,
+        host: HOST,
+        node: process.version,
+        envPort: process.env.PORT || null
+    });
 });
+
 
 
 const dbConfig = {
@@ -319,11 +333,13 @@ app.post('/api/admin/captchas', async (req, res) => {
         const safePage = Math.max(parseInt(page, 10) || 1, 1);
         const offset = (safePage - 1) * safePageSize;
 
+        const pk = await getTablePrimaryKeyName(conn, 'email_code_temp');
+
         const [countRows] = await conn.query('SELECT COUNT(*) AS total FROM email_code_temp');
         const total = (countRows && countRows[0] && countRows[0].total) ? Number(countRows[0].total) : 0;
 
         const [rows] = await conn.query(
-            'SELECT email, code, create_time FROM email_code_temp ORDER BY create_time DESC LIMIT ? OFFSET ?',
+            `SELECT \`${pk}\` AS id, email, code, create_time FROM email_code_temp ORDER BY create_time DESC, \`${pk}\` DESC LIMIT ? OFFSET ?`,
             [safePageSize, offset]
         );
 
@@ -332,6 +348,40 @@ app.post('/api/admin/captchas', async (req, res) => {
         res.status(500).json({ success: false, error: e.message });
     }
     finally { if (conn) conn.end(); }
+});
+
+// 6.1 批量删除验证码记录（按主键 id）
+app.post('/api/admin/captchas/delete', async (req, res) => {
+    const { adminUser, ids } = req.body || {};
+
+    if (!adminUser) {
+        return res.status(400).json({ success: false, message: '缺少 adminUser' });
+    }
+
+    const list = Array.isArray(ids) ? ids.map(x => Number(x)).filter(n => Number.isFinite(n) && n > 0) : [];
+    if (list.length === 0) {
+        return res.status(400).json({ success: false, message: '未选择要删除的记录' });
+    }
+    if (list.length > 200) {
+        return res.status(400).json({ success: false, message: '单次最多删除 200 条' });
+    }
+
+    let conn;
+    try {
+        conn = await mysql.createConnection(dbConfig);
+        const pk = await getTablePrimaryKeyName(conn, 'email_code_temp');
+
+        const [result] = await conn.query(
+            `DELETE FROM email_code_temp WHERE ${pk} IN (?)`,
+            [list]
+        );
+
+        return res.json({ success: true, affected: result && result.affectedRows ? result.affectedRows : 0 });
+    } catch (e) {
+        return res.status(500).json({ success: false, error: e.message });
+    } finally {
+        if (conn) conn.end();
+    }
 });
 
 // 7. 更新用户 (编辑)
