@@ -3,15 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VIP 专属通道 - 沉浸式播放</title>
+    <title>至尊影院 - 沉浸式播放</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@500;700&family=Noto+Sans+SC:wght@300;400;500&display=swap" rel="stylesheet">
     <style>
-        /* --- 核心变量 --- */
+        /* =========================================
+           1. 核心配色 (与 Login.html 保持一致)
+           ========================================= */
         :root {
-            --bg-body: #000000;
+            --bg-body: #050505;
             --primary: #d4af37;
             --gold-gradient: linear-gradient(135deg, #bf953f, #fcf6ba, #b38728, #fbf5b7, #aa771c);
+            --glass-bg: rgba(20, 20, 20, 0.85); 
+            --border-color: rgba(212, 175, 55, 0.3);
         }
 
         ::-webkit-scrollbar { width: 0; height: 0; background: transparent; }
@@ -25,251 +29,334 @@
             background-color: var(--bg-body);
         }
 
-        /* --- 全屏布局设定 --- */
-        #vipInterface {
-            display: none; /* JS控制显示 */
-            width: 100%; height: 100%;
-            position: relative;
+        /* =========================================
+           2. 影院容器
+           ========================================= */
+        .cinema-container {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 1; background: #000;
         }
 
-        .video-container {
-            width: 100%; height: 100%;
-            position: absolute; top: 0; left: 0;
-            z-index: 1;
-            background: #000;
+        .cinema-vignette {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            box-shadow: inset 0 0 150px rgba(0,0,0,0.95);
+            pointer-events: none; z-index: 10;
         }
 
         #videoPlayer {
-            width: 100%; height: 100%;
-            border: none; display: none; /* 加载完成后显示 */
+            width: 100%; height: 100%; border: none;
+            position: absolute; top: 0; left: 0; z-index: 5;
+            display: none;
         }
 
-        /* 视频加载前的背景占位 */
         .video-placeholder {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            width: 100%; height: 100%;
             display: flex; flex-direction: column; align-items: center; justify-content: center;
-            background: #000; z-index: 0;
-        }
-        .placeholder-logo {
-            font-size: 3rem; color: #333; margin-bottom: 20px;
+            background: radial-gradient(circle at center, #141414 0%, #000 100%);
+            z-index: 2;
+            color: #444;
         }
 
-        /* --- 身份检测弹窗 (Status Modal) --- */
-        .status-modal {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.95);
+        /* =========================================
+           3. 左侧自动隐藏线路列表
+           ========================================= */
+        .drawer-trigger {
+            position: fixed; top: 50%; left: 0;
+            transform: translateY(-50%);
+            width: 36px; height: 100px; /* 更加小巧 */
+            background: rgba(15, 15, 15, 0.9);
+            border: 1px solid var(--border-color);
+            border-left: none;
+            border-radius: 0 8px 8px 0;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            cursor: pointer; z-index: 2000;
+            transition: all 0.3s ease;
+            box-shadow: 2px 0 15px rgba(0,0,0,0.7);
+            backdrop-filter: blur(5px);
+        }
+
+        .drawer-trigger:hover {
+            background: #222; border-color: var(--primary);
+        }
+
+        .drawer-trigger.hidden {
+            left: -50px; opacity: 0; pointer-events: none;
+        }
+
+        .trigger-icon {
+            color: var(--primary); font-size: 0.9rem; margin-bottom: 5px;
+            animation: pulse 2s infinite;
+        }
+
+        .trigger-text {
+            writing-mode: vertical-rl; text-orientation: upright;
+            color: #ccc; font-size: 0.75rem; letter-spacing: 2px; font-weight: bold;
+        }
+
+        /* 紧凑型悬浮列表 */
+        .left-drawer {
+            position: fixed; top: 50%; left: -240px; transform: translateY(-50%);
+            width: 200px; height: auto;
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--border-color);
+            border-left: none; border-radius: 0 10px 10px 0;
             z-index: 3000;
-            display: flex; flex-direction: column; justify-content: center; align-items: center;
-            backdrop-filter: blur(10px);
-            transition: opacity 0.8s ease;
+            transition: left 0.3s cubic-bezier(0.25, 0.8, 0.25, 1), opacity 0.3s;
+            display: flex; flex-direction: column;
+            box-shadow: 5px 0 30px rgba(0,0,0,0.8);
+            opacity: 0; padding: 12px 8px;
         }
 
-        .status-box {
-            width: 340px; text-align: center;
-            padding: 40px;
-            border: 1px solid rgba(212, 175, 55, 0.3);
-            background: linear-gradient(180deg, #111 0%, #050505 100%);
-            box-shadow: 0 0 50px rgba(212, 175, 55, 0.1);
-            border-radius: 8px;
-            position: relative;
+        .left-drawer.active { left: 0; opacity: 1; }
+
+        .drawer-title {
+            text-align: center; color: var(--primary); 
+            font-family: 'Noto Serif SC', serif; font-size: 0.95rem;
+            margin-bottom: 10px; padding-bottom: 6px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
         }
+
+        .line-list { list-style: none; padding: 0; margin: 0; }
         
-        /* 扫描线动画效果 */
-        .status-box::after {
-            content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 2px;
-            background: var(--primary);
-            box-shadow: 0 0 15px var(--primary);
-            animation: scan 2s infinite linear;
-            opacity: 0.5;
+        .line-item {
+            padding: 9px 5px; margin-bottom: 5px;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.05);
+            border-radius: 6px; cursor: pointer;
+            font-size: 0.8rem; color: #aaa; transition: all 0.2s;
+            display: flex; align-items: center; justify-content: center; gap: 6px;
         }
 
-        @keyframes scan {
-            0% { top: 0; opacity: 0; }
-            10% { opacity: 1; }
-            90% { opacity: 1; }
-            100% { top: 100%; opacity: 0; }
+        .line-item:hover {
+            background: rgba(212, 175, 55, 0.15); color: #fff; border-color: rgba(212, 175, 55, 0.4);
         }
 
-        .status-icon {
-            font-size: 3.5rem; margin-bottom: 20px;
-            background: var(--gold-gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        .line-item.active {
+            background: var(--gold-gradient); color: #000; font-weight: bold; border: none;
+            box-shadow: 0 0 15px rgba(212, 175, 55, 0.3);
         }
 
-        .status-title {
-            font-family: 'Noto Serif SC', serif; font-size: 1.4rem; color: #fff; margin-bottom: 5px;
-            letter-spacing: 2px;
-        }
+        @keyframes pulse { 0% { opacity: 0.6; } 50% { opacity: 1; } 100% { opacity: 0.6; } }
 
-        .user-detail-row {
-            margin: 25px 0; border-top: 1px solid #222; border-bottom: 1px solid #222;
-            padding: 15px 0;
-        }
-
-        .info-item {
-            display: flex; justify-content: space-between; margin: 8px 0; font-size: 0.95rem;
-        }
-        .info-label { color: #666; }
-        .info-val { color: var(--primary); font-family: monospace; font-size: 1.1rem; letter-spacing: 1px; }
-
-        .status-msg {
-            color: #4CAF50; font-size: 0.9rem; letter-spacing: 1px; font-weight: bold;
-            display: flex; align-items: center; justify-content: center; gap: 8px;
-        }
-        
-        .loading-spinner {
-            width: 14px; height: 14px; border: 2px solid #4CAF50; border-top-color: transparent;
-            border-radius: 50%; animation: spin 1s linear infinite;
-        }
-        @keyframes spin { 100% { transform: rotate(360deg); } }
-
-        /* --- 激活弹窗 (未激活时显示) --- */
-        .activate-modal {
+        /* =========================================
+           4. 美化版检测弹窗 (完全复刻 Login.html 风格)
+           ========================================= */
+        .check-modal {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: #000; z-index: 5000; display: none;
-            justify-content: center; align-items: center;
+            background: rgba(0,0,0,0.85); /* 稍微调暗背景 */
+            z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center;
+            transition: opacity 0.6s ease, visibility 0.6s;
+            backdrop-filter: blur(5px);
         }
-        .activate-box {
-            width: 320px; padding: 30px; text-align: center; border: 1px solid #333; border-radius: 8px;
+
+        /* 核心修改：复刻 .login-wrapper 样式 */
+        .check-box {
+            width: 340px; /* 宽度缩窄 */
+            padding: 25px 30px; /* 内边距减小 (高度缩减关键) */
+            
+            background: var(--glass-bg); /* 统一磨砂背景 */
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(212, 175, 55, 0.3);
+            border-radius: 12px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.9);
+            
+            position: relative; overflow: hidden;
+            text-align: center;
+            transform: translateY(0);
+            animation: fadeInUp 0.5s ease-out;
         }
-        .code-input {
-            width: 100%; padding: 10px; margin: 15px 0; background: #111; border: 1px solid #444; color: #fff; text-align: center;
+
+        /* 顶部金线 */
+        .check-box::before {
+            content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+            background: var(--gold-gradient); opacity: 0.9;
         }
-        .activate-btn {
-            width: 100%; padding: 10px; background: var(--primary); border: none; font-weight: bold; cursor: pointer;
+
+        @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+        .check-icon {
+            font-size: 2.2rem; /* 图标缩小 */
+            margin-bottom: 12px;
+            background: var(--gold-gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            text-shadow: 0 2px 10px rgba(212, 175, 55, 0.15);
         }
+
+        .check-title {
+            font-family: 'Noto Serif SC', serif; font-size: 1.3rem; margin-bottom: 20px;
+            color: #fff; letter-spacing: 1px;
+        }
+
+        /* 紧凑的信息行 */
+        .info-group {
+            background: rgba(0,0,0,0.3);
+            border-radius: 6px;
+            padding: 10px 15px;
+            margin-bottom: 15px;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .info-row {
+            display: flex; justify-content: space-between; align-items: center;
+            font-size: 0.9rem; padding: 4px 0;
+        }
+        
+        .info-label { color: #888; }
+        .info-value { color: var(--primary); font-family: 'Noto Sans SC', monospace; font-weight: 500; }
+
+        .status-text {
+            font-size: 0.85rem; color: #666; margin-bottom: 15px;
+            display: flex; align-items: center; justify-content: center; gap: 6px;
+        }
+        
+        /* 紧凑的退出按钮 */
+        .logout-link {
+            font-size: 0.8rem; color: #555; cursor: pointer; text-decoration: none;
+            transition: 0.3s; display: inline-block; padding: 5px 10px;
+            border-radius: 4px;
+        }
+        .logout-link:hover { color: #fff; background: rgba(255,255,255,0.05); }
 
     </style>
     <script>
         let currentUser = null;
+        
+        const vipLines = [
+            { name: "超级会员一号线", url: "https://jx.xmflv.com/?url=" },
+            { name: "超级会员二号线", url: "https://jx.789jiexi.com/?url=" },
+            { name: "超级会员三号线", url: "https://im1907.top/?jx=" },
+            { name: "超级会员四号线", url: "https://jx.m3u8.tv/jiexi/?url=" },
+            { name: "超级会员五号线", url: "https://jx.playerjy.com/?url=" },
+            { name: "超级会员六号线", url: "https://www.ckplayer.vip/jiexi/?url=" },
+            { name: "超级会员七号线", url: "https://jx.yparse.com/index.php?url=" },
+            { name: "超级会员八号线", url: "https://www.8090g.cn/?url=" }
+        ];
 
-        // 初始化
         function initApp() {
             const userStr = localStorage.getItem('vip_user');
-            
-            // 1. 未登录 -> 跳转登录
             if (!userStr) {
-                window.location.href = 'login.html'; 
+                window.location.href = 'login.html';
                 return;
             }
-
             currentUser = JSON.parse(userStr);
-            const isActive = Number(currentUser.is_active) === 1;
-
+            
             window.addEventListener('DOMContentLoaded', () => {
-                if (isActive) {
-                    // 已激活 -> 显示主界面，并启动检测流程
-                    document.getElementById('vipInterface').style.display = 'block';
-                    document.getElementById('activateModal').style.display = 'none';
-                    
-                    // 启动身份检测动画
-                    startIdentityCheck();
-
-                } else {
-                    // 未激活 -> 显示激活框
-                    document.getElementById('vipInterface').style.display = 'none';
-                    document.getElementById('activateModal').style.display = 'flex';
-                }
+                renderLineList();
+                runSecurityCheck();
+                bindDrawerInteraction();
             });
         }
 
-        // 核心流程：身份检测与进入播放
-        function startIdentityCheck() {
-            const statusModal = document.getElementById('statusModal');
-            const msgEl = document.getElementById('statusMsg');
+        function renderLineList() {
+            const listContainer = document.getElementById('lineListContainer');
+            if(!listContainer) return;
+            listContainer.innerHTML = '';
             
-            // 1. 填充用户信息
-            document.getElementById('infoLevel').innerText = isPermanentVip(currentUser.expire_time) ? '黑金至尊 SVIP' : '尊享 VIP 会员';
-            document.getElementById('infoAccount').innerText = maskUsername(currentUser.username);
-            
-            // 2. 模拟检测过程
-            setTimeout(() => {
-                msgEl.innerHTML = '<div class="loading-spinner"></div> 正在连接云端节点...';
-            }, 800);
-
-            setTimeout(() => {
-                msgEl.innerHTML = '<i class="fas fa-check-circle"></i> 权限验证通过，已进入专属播放通道';
-                msgEl.style.color = '#4CAF50'; // 绿色
-            }, 2000);
-
-            // 3. 检测完成，隐藏弹窗并播放
-            setTimeout(() => {
-                statusModal.style.opacity = '0';
-                setTimeout(() => {
-                    statusModal.style.display = 'none'; // 完全移除
-                    autoPlayVideo(); // 触发播放
-                }, 800); // 等待淡出动画
-            }, 3500);
+            vipLines.forEach((line, index) => {
+                const li = document.createElement('li');
+                li.className = 'line-item' + (index === 0 ? ' active' : '');
+                li.innerHTML = `<i class="fas fa-play" style="font-size:0.6rem;"></i> ${line.name}`;
+                li.onclick = () => switchLine(line.url, li);
+                listContainer.appendChild(li);
+            });
         }
 
-        // 自动播放逻辑
-        function autoPlayVideo() {
-            // 获取 URL 参数中的 v_url
+        function bindDrawerInteraction() {
+            const trigger = document.getElementById('drawerTrigger');
+            const drawer = document.getElementById('leftDrawer');
+
+            trigger.addEventListener('click', () => {
+                drawer.classList.add('active');
+                trigger.classList.add('hidden');
+            });
+
+            drawer.addEventListener('mouseleave', () => {
+                closeDrawer();
+            });
+        }
+
+        function closeDrawer() {
+            document.getElementById('leftDrawer').classList.remove('active');
+            document.getElementById('drawerTrigger').classList.remove('hidden');
+        }
+
+        function switchLine(apiUrl, element) {
+            document.querySelectorAll('.line-item').forEach(el => el.classList.remove('active'));
+            element.classList.add('active');
+            closeDrawer();
+
             const urlParams = new URLSearchParams(window.location.search);
-            const targetUrl = urlParams.get('v_url');
-            
-            // 如果没有传参，这里为了演示，可以设置一个默认提示或者不做动作
-            // 实际使用时，你需要确保跳转到这个页面时带了 ?v_url=...
-            
-            const player = document.getElementById('videoPlayer');
-            const placeholder = document.getElementById('videoPlaceholder');
-            
-            // 这里使用一个更稳定的接口，或者保持你原来的接口
-            // 默认接口：https://jx.xmflv.com/?url=
-            const api = "https://jx.xmflv.com/?url=";
-
-            if (targetUrl) {
-                player.src = api + targetUrl;
-                player.style.display = 'block';
-                placeholder.style.display = 'none';
-                console.log("正在播放:", targetUrl);
+            const vUrl = urlParams.get('v_url');
+            if(vUrl) {
+                playVideo(apiUrl, vUrl);
             } else {
-                // 如果没有检测到URL参数，给用户一个提示（可选）
-                placeholder.innerHTML = '<h3 style="color:#666">等待视频信号输入...</h3><p style="color:#444; font-size:0.8rem">请从片库选择视频跳转</p>';
+                alert('请先添加视频地址');
             }
         }
 
-        // 辅助函数：脱敏账号
+        function runSecurityCheck() {
+            const checkModal = document.getElementById('checkModal');
+            const statusText = document.getElementById('statusText');
+            
+            if(currentUser) {
+                document.getElementById('displayLevel').innerText = isPermanentVip(currentUser.expire_time) ? 'SVIP 尊享会员' : 'VIP 会员';
+                document.getElementById('displayAccount').innerText = maskUsername(currentUser.username);
+            }
+
+            setTimeout(() => { statusText.innerHTML = '<i class="fas fa-satellite-dish"></i> 正在建立加密通道...'; }, 600);
+            
+            setTimeout(() => {
+                statusText.innerHTML = '<i class="fas fa-check"></i> 验证通过，准备播放';
+                statusText.style.color = '#4CAF50';
+            }, 1500);
+
+            setTimeout(() => {
+                checkModal.style.opacity = '0';
+                checkModal.style.visibility = 'hidden';
+                
+                const urlParams = new URLSearchParams(window.location.search);
+                const vUrl = urlParams.get('v_url');
+                
+                if(vUrl) {
+                    playVideo(vipLines[0].url, vUrl);
+                } else {
+                    const placeholder = document.getElementById('placeholder');
+                    if(placeholder) {
+                        placeholder.innerHTML = `
+                            <i class="fas fa-film" style="font-size:2.5rem; margin-bottom:15px; opacity:0.7"></i>
+                            <p style="font-size:0.9rem; color:#666;">等待视频信号...</p>
+                        `;
+                    }
+                }
+            }, 2200);
+        }
+
+        function playVideo(api, vUrl) {
+            const player = document.getElementById('videoPlayer');
+            const placeholder = document.getElementById('placeholder');
+            if(player && placeholder) {
+                placeholder.style.display = 'none';
+                player.style.display = 'block';
+                player.src = api + vUrl;
+            }
+        }
+
+        function logout() {
+            if(confirm('确定要退出当前账号吗？')) {
+                localStorage.removeItem('vip_user');
+                window.location.href = 'login.html';
+            }
+        }
+
         function maskUsername(username) {
-            const str = String(username ?? '');
-            if (/^\d{11}$/.test(str)) {
-                return str.replace(/^(\d{3})\d{4}(\d{4})$/, '$1****$2');
-            }
-            // 如果不是手机号，取前2后2，中间4个星
-            if (str.length > 4) {
-                return str.substring(0, 2) + "****" + str.substring(str.length - 2);
-            }
-            return str + "****";
+            const str = String(username || '');
+            if (/^\d{11}$/.test(str)) return str.replace(/^(\d{3})\d{4}(\d{4})$/, '$1****$2');
+            return str.length > 4 ? str.substring(0, 2) + "****" + str.substring(str.length - 2) : "****";
         }
 
         function isPermanentVip(expireTime) {
             if (!expireTime) return false;
-            const d = new Date(expireTime);
-            const ms = d.getTime() - Date.now();
-            return ms / 86400000 > 3650; // 大于10年视为永久
-        }
-
-        // 激活逻辑（保留以备未激活用户使用）
-        async function submitActivation() {
-            const code = document.getElementById('activationCode').value.trim();
-            if (!code) return alert("请输入激活码");
-            
-            try {
-                // 模拟激活请求 (请替换为你真实的 API)
-                const res = await fetch('/api/activate', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ username: currentUser.username, code: code })
-                });
-                const data = await res.json();
-                if (data.success) {
-                    alert('激活成功');
-                    currentUser.is_active = 1;
-                    localStorage.setItem('vip_user', JSON.stringify(currentUser));
-                    location.reload();
-                } else {
-                    alert(data.message || '激活失败');
-                }
-            } catch (e) { alert('网络错误'); }
+            return (new Date(expireTime).getTime() - Date.now()) > 315360000000; 
         }
 
         initApp();
@@ -277,51 +364,62 @@
 </head>
 <body>
 
-    <!-- 主界面容器 -->
-    <div id="vipInterface">
-        
-        <!-- 1. 全屏播放区域 -->
-        <div class="video-container">
-            <div class="video-placeholder" id="videoPlaceholder">
-                <div class="placeholder-logo"><i class="fas fa-crown"></i></div>
-            </div>
-            <iframe id="videoPlayer" allowfullscreen allow="autoplay; encrypted-media"></iframe>
-        </div>
-
-        <!-- 2. 身份检测弹窗 (进入时显示) -->
-        <div id="statusModal" class="status-modal">
-            <div class="status-box">
-                <div class="status-icon"><i class="fas fa-shield-alt"></i></div>
-                <div class="status-title">安全校验中</div>
-                <div style="font-size:0.8rem; color:#666; margin-bottom:10px;">SECURE CONNECTION ESTABLISHED</div>
-                
-                <div class="user-detail-row">
-                    <div class="info-item">
-                        <span class="info-label">会员等级</span>
-                        <span class="info-val" id="infoLevel">检测中...</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">账号信息</span>
-                        <span class="info-val" id="infoAccount">****</span>
-                    </div>
+    <!-- 1. 优化版检测弹窗 (Login.html 风格) -->
+    <div id="checkModal" class="check-modal">
+        <div class="check-box">
+            <!-- 顶部图标 -->
+            <div class="check-icon"><i class="fas fa-crown"></i></div>
+            
+            <!-- 标题 -->
+            <div class="check-title">至尊会员通道</div>
+            
+            <!-- 信息聚合块 -->
+            <div class="info-group">
+                <div class="info-row">
+                    <span class="info-label">身份</span>
+                    <span class="info-value" id="displayLevel">检测中...</span>
                 </div>
-
-                <div class="status-msg" id="statusMsg">
-                    <div class="loading-spinner"></div> 正在获取授权...
+                <div class="info-row">
+                    <span class="info-label">账号</span>
+                    <span class="info-value" id="displayAccount">****</span>
                 </div>
             </div>
-        </div>
 
+            <!-- 状态文字 -->
+            <div class="status-text" id="statusText">
+                <i class="fas fa-circle-notch fa-spin"></i> 权限校验中...
+            </div>
+            
+            <!-- 底部退出 -->
+            <a class="logout-link" onclick="logout()">
+                切换账号 <i class="fas fa-sign-out-alt"></i>
+            </a>
+        </div>
     </div>
 
-    <!-- 3. 激活弹窗 (仅未激活用户可见) -->
-    <div class="activate-modal" id="activateModal">
-        <div class="activate-box">
-            <h2 style="color:var(--primary); margin-bottom:10px;">会员未激活</h2>
-            <p style="color:#888; font-size:0.9rem;">请输入激活码以解锁全屏播放权限</p>
-            <input type="text" class="code-input" id="activationCode" placeholder="VIP-XXXX-XXXX">
-            <button class="activate-btn" onclick="submitActivation()">立即激活</button>
+    <!-- 2. 全屏播放容器 -->
+    <div class="cinema-container">
+        
+        <!-- 3. 左侧触发按钮 -->
+        <div class="drawer-trigger" id="drawerTrigger">
+            <i class="fas fa-exchange-alt trigger-icon"></i>
+            <span class="trigger-text">换线</span>
         </div>
+
+        <!-- 4. 紧凑型自动隐藏线路列表 -->
+        <div class="left-drawer" id="leftDrawer">
+            <div class="drawer-title">VIP 专线</div>
+            <ul class="line-list" id="lineListContainer">
+                <!-- JS填充 -->
+            </ul>
+        </div>
+
+        <!-- 影院遮罩 -->
+        <div class="cinema-vignette"></div>
+
+        <!-- 占位符/播放器 -->
+        <div class="video-placeholder" id="placeholder"></div>
+        <iframe id="videoPlayer" allowfullscreen allow="autoplay; encrypted-media"></iframe>
     </div>
 
 </body>
